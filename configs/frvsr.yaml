@@ -1,0 +1,72 @@
+net:
+  FRVSR:
+    channel: 3
+    gain: 32
+    up_scale: 4
+    n_rb: 5
+    filter: 32
+    flow_layer_num: 3
+save_dir: ./output/frvsr
+trainer:
+  FRVSRTrainer:
+    epochs: 50
+    log_dir: logs
+    ckpt_dir: ckpt
+    log_frq: 10
+    output_dir: eval
+    flow_loss_weight: 1.0
+    flow_var_weight: 0.001
+    up_scale: 4
+    save_step_frq: 250
+optimizer:
+  name: Adam
+  lr: 0.0001
+scheduler:
+  name: none
+data:
+  name: SequentialDataset
+  train:
+    image_dir: ./data
+    window: 10
+    stride: 2
+    sample_stride: 5
+    upscale_factor: 4
+    data_argumentation: true
+    file_list: ./data/train.txt
+    patch_size: [240, 135]
+    sample_strategy: random
+    batch_size: 4
+    shuffle: true
+    num_workers: 4
+    mod: 8
+  val:
+    image_dir: ./data
+    window: 10
+    stride: 2
+    sample_stride: 5
+    upscale_factor: 4
+    data_argumentation: true
+    file_list: ./data/val_sample.txt
+    patch_size: [240, 135]
+    sample_strategy: start
+    batch_size: 4
+    shuffle: false
+    num_workers: 4
+    mod: 8
+  test:
+    image_dir: ./data
+    window: 10
+    stride: 2
+    sample_stride: 5
+    upscale_factor: 4
+    data_argumentation: false
+    file_list: ./data/test.txt
+    patch_size: [240, 135]
+    sample_strategy: start
+    batch_size: 2
+    shuffle: false
+    num_workers: 4
+    mod: 8
+
+
+

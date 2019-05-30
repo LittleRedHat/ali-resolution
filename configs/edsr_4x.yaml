@@ -1,0 +1,46 @@
+net:
+  EDSR:
+    n_resblocks: 32
+    n_feats: 256
+    scale_factor: 4
+    num_channels: 3
+    res_scale: 0.1
+save_dir: ./output/edsr_4x
+trainer:
+  SISRTrainer:
+    epochs: 200
+    log_dir: logs
+    ckpt_dir: ckpt
+    log_frq: 10
+    output_dir: eval
+    restore_ckpt: ./output/edsr_2x/05-30-02/ckpt/model-epoch112.pth.tar
+optimizer:
+  name: Adam
+  lr: 0.0001
+  weight_decay: 0.0001
+scheduler:
+  name: none
+data:
+  name: SISRDataset
+  train:
+    image_dir: ./data
+    upscale_factor: 4
+    data_argumentation: true
+    file_list: ./data/train_sisr.txt
+    patch_size: [64, 64]
+    batch_size: 32
+    shuffle: true
+    num_workers: 8
+    repeat: 5
+    mod: 1
+  val:
+    image_dir: ./data
+    upscale_factor: 4
+    data_argumentation: false
+    file_list: ./data/val_sample_sisr.txt
+    patch_size: [64, 64]
+    batch_size: 32
+    shuffle: false
+    num_workers: 4
+    repeat: 5
+    mod: 1
