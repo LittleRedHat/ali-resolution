@@ -13,6 +13,7 @@ import numpy as np
 import os
 from PIL import Image, ImageOps
 import random
+import pyflow
 
 
 def is_image_file(filename):
@@ -307,6 +308,7 @@ class VSRTestDataset(Dataset):
         self.sample_strategy = config.get('sample_strategy', 'start')
         file_list = config['file_list']
         self.input_frames, self.target_frames = self._load_frames(file_list)
+        self.config = config
 
     def _load_frames(self, file_list):
         input_frames = []
@@ -323,19 +325,26 @@ class VSRTestDataset(Dataset):
         target = self.target_frames[item]
         track = file.split('/')[-2].replace('_l', '')
         frame = file.split('/')[-1]
+        frame_id = int(frame.split('.')[0])
         if self.sample_strategy == 'start':
-            ids = [frame + i * self.stride for i in range(self.window)]
+            ids = [int(frame_id) + i * self.stride for i in range(self.window)]
         elif self.sample_strategy == 'center':
-            ids = [frame + i * self.stride for i in range(-self.window // 2 + 1, self.window // 2 + 1)]
+            ids = [int(frame_id) + i * self.stride for i in range(-self.window // 2 + 1, self.window // 2 + 1)]
+        elif self.sample_strategy == 'end':
+            ids = [int(frame_id) + i * self.stride for i in range(-self.window+1, 1)]
         else:
             raise NotImplementedError
         inputs = []
         targets = []
         bicubics = []
-        infos = []
-        for id in enumerate(ids):
+        # tracks = []
+        # frames = []
+        for _, id in enumerate(ids):
             input_file = os.path.join(track + '_l', '{:03d}.bmp'.format(id + 1))
             target_file = os.path.join(track + '_h_GT', '{:03d}.bmp'.format(id + 1))
+            if not os.path.exists(input_file):
+                input_file = file
+                target_file = target
             input_f, target_f = SISRDataset.load_image(input_file, target_file, self.upscale_factor)
             if self.patch_size and not self.config.get('keep_full', False):
                 patch_info = {'ix': -1, 'iy': -1}
@@ -351,14 +360,13 @@ class VSRTestDataset(Dataset):
                 input_f = self.transform(input_f)
                 target_f = self.transform(target_f)
                 bicubic = self.transform(bicubic)
-            infos.append((track, id))
             inputs.append(input_f)
             targets.append(target_f)
             bicubics.append(bicubic)
-        inputs = torch.cat(inputs, dim=0)
-        targets = torch.cat(targets, dim=0)
-        bicubics = torch.cat(bicubics, dim=0)
-        return inputs, targets, bicubics, infos
+        inputs = torch.stack(inputs, dim=0)
+        targets = torch.stack(targets, dim=0)
+        bicubics = torch.stack(bicubics, dim=0)
+        return inputs, targets, bicubics, track, frame
 
     def __len__(self):
         return len(self.input_frames)
@@ -373,93 +381,161 @@ class VSRTestDataset(Dataset):
         return data_loader
 
 
-# class FlowDataset(Dataset):
-#     def __init__(self, config, transform=None):
-#         super(FlowDataset, self).__init__()
-#         image_dir = config['image_dir']
-#         window = config['window']
-#         stride = config['stride']
-#         # note that sample stride is used in sample data, stride is used in extract neighbor frame
-#         sample_stride = config.get('sample_stride', stride)
-#         upscale_factor = config['upscale_factor']
-#         data_augmentation = config['data_argumentation']
-#         file_list = config['file_list']
-#         patch_size = config['patch_size']
-#         future_frame = config['future_frame']
-#         sample_strategy = config['sample_strategy']
-#         input_list = [line.rstrip() for line in open(file_list)]
-#
-#         self.input_tracks = [os.path.join(image_dir, x + "_l") for x in input_list]
-#         self.target_tracks = [os.path.join(image_dir, x + "_h_GT") for x in input_list]
-#         self.input_frames, self.target_frames = self.load_frames()
-#         self.track_frames = len(self.input_frames[0])
-#         # sample ${window} frames with stride for train
-#         self.window = window
-#         self.upscale_factor = upscale_factor
-#         self.transform = transform
-#         self.data_augmentation = data_augmentation
-#         self.patch_size = patch_size
-#         self.future_frame = future_frame
-#         self.stride = stride
-#         self.sample_stride = sample_stride
-#         self.sample_strategy = sample_strategy
-#
-#     def load_frames(self):
-#         input_frames = []
-#         target_frames = []
-#         for i, track in enumerate(self.input_tracks):
-#             frames = [os.path.join(track, frame) for frame in sorted(os.listdir(track)) if is_image_file(frame)]
-#             target_track = self.target_tracks[i]
-#             targets = [os.path.join(target_track, frame) for frame in sorted(os.listdir(target_track)) if is_image_file(frame)]
-#             input_frames.append(frames)
-#             target_frames.append(targets)
-#         return input_frames, target_frames
-#
-#     def __getitem__(self, index):
-#         samples_per_track = self.track_frames // self.sample_stride
-#         track_index = index // samples_per_track
-#         frame_id = index - samples_per_track * track_index
-#         frame_id = frame_id * self.sample_stride + 1
-#
-#         # print("{} / {}".format(track_index, frame_id))
-#
-#         if self.sample_strategy == 'random':
-#             r = np.random.randint(self.sample_stride)
-#             frame_id += r
-#         elif self.sample_strategy == 'start':
-#             frame_id = frame_id
-#
-#         input_f, neighbor, target_f = load_img(self.input_tracks[track_index], self.target_tracks[track_index],
-#                                                frame_id, self.window, self.stride,  self.upscale_factor,
-#                                                future=self.future_frame)
-#
-#         if self.patch_size != 0:
-#             input_f, target_f, neighbor, _ = get_patch(input_f, target_f, neighbor, self.patch_size,
-#                                                        self.upscale_factor, self.window)
-#         if self.data_augmentation:
-#             input_f, target_f, neighbor, _ = augment(input_f, target_f, neighbor)
-#
-#         flow = [get_flow(input_f, j) for j in neighbor]
-#         bicubic = rescale_img(input_f, self.upscale_factor)
-#
-#         if self.transform:
-#             target_f = self.transform(target_f)
-#             input_f = self.transform(input_f)
-#             bicubic = self.transform(bicubic)
-#             neighbor = [self.transform(j) for j in neighbor]
-#             flow = [torch.from_numpy(j.transpose(2, 0, 1)) for j in flow]
-#         return input_f, target_f, neighbor, flow, bicubic, (track_index, frame_id)
-#
-#     def __len__(self):
-#         return len(self.input_tracks) * (self.track_frames // self.sample_stride)
-#
-#     def get_dataloader(self, batch_size=32, shuffle=True, num_workers=4):
-#         data_loader = torch.utils.data.DataLoader(dataset=self,
-#                                                   batch_size=batch_size,
-#                                                   shuffle=shuffle,
-#                                                   num_workers=num_workers,
-#                                                   drop_last=False,
-#                                                   pin_memory=True)
-#         return data_loader
-#
-#
+class VSRFlowDataset(Dataset):
+    def __init__(self, config, transform=None):
+        super(VSRFlowDataset, self).__init__()
+        self.image_dir = config['image_dir']
+        self.window = config['window']
+        self.stride = config['stride']
+        self.upscale_factor = config['upscale_factor']
+        self.data_augmentation = config['data_argumentation']
+        file_list = config['file_list']
+        self.patch_size = config['patch_size']
+        self.future_frame = config['future_frame']
+        input_list = [line.rstrip() for line in open(file_list)]
+
+        self.input_tracks = [os.path.join(self.image_dir, x + "_l") for x in input_list]
+        self.target_tracks = [os.path.join(self.image_dir, x + "_h_GT") for x in input_list]
+        self.input_frames, self.target_frames = self.load_frames()
+        self.track_frames = len(self.input_frames[0])
+        self.transform = transform
+        self.sample_strategy = config.get('sample_strategy')
+        self.repeat = config['repeat']
+        self.config = config
+
+    def load_frames(self):
+        input_frames = []
+        target_frames = []
+        for i, track in enumerate(self.input_tracks):
+            frames = [os.path.join(track, frame) for frame in sorted(os.listdir(track)) if is_image_file(frame)]
+            target_track = self.target_tracks[i]
+            targets = [os.path.join(target_track, frame) for frame in sorted(os.listdir(target_track)) if is_image_file(frame)]
+            input_frames.append(frames)
+            target_frames.append(targets)
+        return input_frames, target_frames
+
+    def load_img(self, input_track_path, target_track_path, frame_id):
+        target_file_path = os.path.join(target_track_path, '{:03d}.bmp'.format(frame_id))
+        input_file_path = os.path.join(input_track_path, '{:03d}.bmp'.format(frame_id))
+        input_f = Image.open(input_file_path).convert('RGB')
+        if os.path.exists(target_file_path):
+            target_f = Image.open(target_file_path).convert('RGB')
+        else:
+            tw, th = input_f.width * self.upscale_factor, input_f.height * self.upscale_factor
+            target_f = None
+            # target_f = input_f.resize((tw, th), Image.BICUBIC)
+        neighbor = []
+        if not self.future_frame:
+            seq = [x for x in range(-self.window, 0, 1)]
+        else:
+            tt = self.window // 2
+            if self.window % 2 == 0:
+                seq = [x for x in range(-tt, tt) if x != 0]
+            else:
+                seq = [x for x in range(-tt, tt + 1) if x != 0]
+        for i in seq:
+            neighbor_frame_id = frame_id + i * self.stride
+            file_name = os.path.join(input_track_path, '{:03d}.bmp'.format(neighbor_frame_id))
+            if os.path.exists(file_name):
+                temp = Image.open(file_name).convert('RGB')
+                neighbor.append(temp)
+            else:
+                temp = input_f
+                neighbor.append(temp)
+        return input_f, neighbor, target_f
+
+    def get_patch(self, input_f, target_f, neighbor, ix=-1, iy=-1):
+        (ih, iw) = input_f.size
+        tp = [self.upscale_factor * item for item in self.patch_size]
+        ip = self.patch_size
+        if ix == -1:
+            ix = random.randrange(0, iw - ip[1] + 1)
+        if iy == -1:
+            iy = random.randrange(0, ih - ip[0] + 1)
+        (tx, ty) = (self.upscale_factor * ix, self.upscale_factor * iy)
+        input_f = input_f.crop((iy, ix, iy + ip[0], ix + ip[1]))  # [:, iy:iy + ip, ix:ix + ip]
+        target_f = target_f.crop((ty, tx, ty + tp[0], tx + tp[1]))  # [:, ty:ty + tp, tx:tx + tp]
+        neighbor = [n.crop((iy, ix, iy + ip[0], ix + ip[1])) for n in neighbor]
+        info_patch = {'ix': ix, 'iy': iy, 'ip': ip, 'tx': tx, 'ty': ty, 'tp': tp}
+        return input_f, target_f, neighbor, info_patch
+
+    def augment(self, input_f, target_f, neighbor, flip_h=True, rot=True):
+        info_aug = {'flip_h': False, 'flip_v': False, 'trans': False}
+
+        if random.random() < 0.5 and flip_h:
+            input_f = ImageOps.flip(input_f)
+            target_f = ImageOps.flip(target_f)
+            neighbor = [ImageOps.flip(n) for n in neighbor]
+            info_aug['flip_h'] = True
+        if rot:
+            if random.random() < 0.5:
+                input_f = ImageOps.mirror(input_f)
+                target_f = ImageOps.mirror(target_f)
+                neighbor = [ImageOps.mirror(n) for n in neighbor]
+                info_aug['flip_v'] = True
+            if random.random() < 0.5:
+                input_f = input_f.rotate(180)
+                target_f = target_f.rotate(180)
+                neighbor = [n.rotate(180) for n in neighbor]
+                info_aug['trans'] = True
+        return input_f, target_f, neighbor, info_aug
+
+    @staticmethod
+    def get_flow(im1, im2):
+        im1 = np.array(im1)
+        im2 = np.array(im2)
+        im1 = im1.astype(float) / 255.
+        im2 = im2.astype(float) / 255.
+        # Flow Options:
+        alpha = 0.012
+        ratio = 0.75
+        minWidth = 20
+        nOuterFPIterations = 7
+        nInnerFPIterations = 1
+        nSORIterations = 30
+        colType = 0
+        u, v, im2W = pyflow.coarse2fine_flow(im1, im2, alpha, ratio, minWidth, nOuterFPIterations, nInnerFPIterations,
+                                             nSORIterations, colType)
+        flow = np.concatenate((u[..., None], v[..., None]), axis=2)
+        # flow = rescale_flow(flow,0,1)
+        return flow
+
+    def __getitem__(self, index):
+        track_index = index // self.repeat
+        track_frames = len(self.input_frames[track_index])
+        if self.sample_strategy == 'random':
+            up = track_frames - self.stride * self.window
+            start_frame_id = np.random.randint(0, up)
+        elif self.sample_strategy == 'start':
+            start_frame_id = 0
+
+        start_frame_id += 1
+
+        input_f, neighbor, target_f = self.load_img(self.input_tracks[track_index], self.target_tracks[track_index], start_frame_id)
+        if self.patch_size != 0:
+            input_f, target_f, neighbor, _ = self.get_patch(input_f, target_f, neighbor)
+        if self.data_augmentation:
+            input_f, target_f, neighbor, _ = self.augment(input_f, target_f, neighbor)
+        flow = [self.get_flow(input_f, j) for j in neighbor]
+        bicubic = input_f.resize((self.upscale_factor * input_f.width, self.upscale_factor * input_f.height), Image.BICUBIC)
+        if self.transform:
+            target_f = self.transform(target_f)
+            input_f = self.transform(input_f)
+            bicubic = self.transform(bicubic)
+            neighbor = [self.transform(j) for j in neighbor]
+            flow = [torch.from_numpy(j.transpose(2, 0, 1)) for j in flow]
+        return input_f, target_f, neighbor, flow, bicubic, (track_index, start_frame_id)
+
+    def __len__(self):
+        return len(self.input_tracks) * self.repeat
+
+    def get_dataloader(self, batch_size=32, shuffle=True, num_workers=4):
+        data_loader = torch.utils.data.DataLoader(dataset=self,
+                                                  batch_size=batch_size,
+                                                  shuffle=shuffle,
+                                                  num_workers=num_workers,
+                                                  drop_last=False,
+                                                  pin_memory=True)
+        return data_loader
+
+

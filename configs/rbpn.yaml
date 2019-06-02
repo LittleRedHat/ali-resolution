@@ -4,10 +4,10 @@ net:
     scale_factor: 4
     num_channels: 3
     base_filter: 64
-    feat: 32
-    num_stages: 2
-    n_resblock: 2
-    residual: false
+    feat: 64
+    num_stages: 3
+    n_resblock: 7
+    residual: true
 save_dir: ./output/rbpn
 trainer:
   RBPNTrainer:
@@ -18,11 +18,12 @@ trainer:
     output_dir: eval
 optimizer:
   name: Adam
-  lr: 0.00001
+  lr: 0.0001
 scheduler:
   name: none
 data:
   train:
+    name: VSRFlowDataset
     image_dir: ./data
     window: 3
     stride: 2
@@ -30,13 +31,15 @@ data:
     upscale_factor: 4
     data_argumentation: true
     file_list: ./data/train.txt
-    patch_size: 128
+    patch_size: [64, 64]
     future_frame: true
-    sample_strategy: start
+    sample_strategy: random
     batch_size: 4
     shuffle: true
     num_workers: 4
+    repeat: 10
   val:
+    name: VSRFlowDataset
     image_dir: ./data
     window: 3
     stride: 2
@@ -44,13 +47,15 @@ data:
     upscale_factor: 4
     data_argumentation: false
     file_list: ./data/val.txt
-    patch_size: 128
+    patch_size: [64, 64]
     future_frame: true
     sample_strategy: start
     batch_size: 4
     shuffle: false
     num_workers: 4
+    repeat: 1
   test:
+    name: VSRFlowDataset
     image_dir: ./data
     window: 3
     stride: 2
@@ -58,12 +63,13 @@ data:
     upscale_factor: 4
     data_argumentation: false
     file_list: ./data/test.txt
-    patch_size: 0
+    patch_size: [64, 64]
     future_frame: true
     sample_strategy: start
     batch_size: 1
     shuffle: false
     num_workers: 4
+    repeat: 1
 
 
 

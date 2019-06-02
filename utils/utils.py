@@ -9,6 +9,7 @@ __author__ = 'zookeeper'
 import os
 import shutil
 import json
+import yaml
 
 
 def ensure_path(path):
@@ -23,7 +24,7 @@ def delete_path(path):
 
 def save_config(config, output):
     with open(output, 'w') as f:
-        json.dump(config, f)
+        yaml.dump(config, f, allow_unicode=True)
 
 
 

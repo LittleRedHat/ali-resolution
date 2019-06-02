@@ -8,7 +8,7 @@
 __author__ = 'zookeeper'
 import torch
 import torch.nn as nn
-from .base_network import UpBlock, DownBlock, D_UpBlock, DeconvBlock, ConvBlock, D_DownBlock, Upsampler
+from model.rbpn.base_network import UpBlock, DownBlock, D_UpBlock, DeconvBlock, ConvBlock, D_DownBlock, Upsampler
 
 
 class DBPN_5(nn.Module):
@@ -227,7 +227,8 @@ class DBPN_3(nn.Module):
             padding = 2
 
         # Initial Feature Extraction
-        # self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation='prelu',norm=None)
+        self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation='prelu',
+                               norm=None)
         self.feat1 = ConvBlock(feat, base_filter, 1, 1, 0, activation='prelu',
                                norm=None)
         # Back-projection stages
@@ -252,7 +253,7 @@ class DBPN_3(nn.Module):
 
     def forward(self, x):
         x, bicubic = x
-        # x = self.feat0(x)
+        x = self.feat0(x)
         x = self.feat1(x)
 
         h1 = self.up1(x)

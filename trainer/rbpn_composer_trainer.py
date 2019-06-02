@@ -8,6 +8,8 @@
 __author__ = "zookeeper"
 from base.base_trainer import BaseTrainer
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import time
 import torch.nn as nn
 from model.metric import psnr as psnr_fn, psnr_torch
@@ -16,11 +18,23 @@ import os
 from utils.utils import ensure_path
 
 
+def total_variance(x, dims=(2, 3), reduction='mean'):
+    tot_var = 0
+    reduce = 1
+    for dim in dims:
+        row = x.split(1, dim=dim)
+        reduce *= x.shape[dim]
+        for i in range(len(row) - 1):
+            tot_var += torch.abs(row[i] - row[i + 1]).sum()
+    if reduction != 'mean':
+        reduce = 1
+    return tot_var / reduce
 
-class RBPNTrainer(BaseTrainer):
+
+class RBPNComposerTrainer(BaseTrainer):
     def __init__(self, model, optimizer, scheduler,  config):
-        super(RBPNTrainer, self).__init__(model, optimizer, scheduler, config)
-        self.loss_fn = nn.L1Loss(size_average=True)
+        super(RBPNComposerTrainer, self).__init__(model, optimizer, scheduler, config)
+        # self.loss_fn = nn.L1Loss(size_average=True)
         self.log_frq = self.config.get('log_frq', 1000)
         self.log_dir = self.config.get('log_dir', 'logs')
 
@@ -31,18 +45,43 @@ class RBPNTrainer(BaseTrainer):
         total_loss = 0.0
         ensure_path(os.path.join(self.config['output_dir'], 'sample'))
         for step, sample in enumerate(train_dataloader):
-            inputs, targets, neighbors, flows, bicubics, _ = sample
-            # print(inputs.shape, targets.shape, neighbors[0].shape, flows[0].shape, bicubics.shape)
+            inputs, targets, bicubics, _ = sample # inputs - > batch_size * frames * channel * height * width
+            # if torch.cuda.is_available():
+            #     inputs = inputs.cuda()
+            #     targets = targets.cuda()
+            #     bicubics = bicubics.cuda()
+
+            self.optimizer.zero_grad()
+
+            window = inputs.shape[1]
+            frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
+            labels = [target.squeeze(1) for target in targets.split(1, dim=1)]
+            bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
+
+
+
+            inputs = frames.pop(window // 2)
+            neighbors = frames
+            bicubics = bicubics.pop(window // 2)
+            targets = labels.pop(window // 2)
+
+            print(inputs.shape, neighbors[0].shape, bicubics.shape, targets.shape)
+
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
+                neighbors = [x.cuda() for x in neighbors]
                 targets = targets.cuda()
                 bicubics = bicubics.cuda()
-                neighbors = [j.cuda() for j in neighbors]
-                flows = [j.cuda().float() for j in flows]
-            self.optimizer.zero_grad()
-            prediction = self.model((inputs, neighbors, flows, bicubics))
-            loss = self.loss_fn(prediction, targets)
-            psnr = psnr_torch(prediction, targets, max_val=1.0)
+
+            prediction, flows, warps = self.model((inputs, neighbors, bicubics))
+
+            image_loss = F.l1_loss(prediction, labels)
+            warp_loss = [F.l1_loss(w, inputs) for w in warps]
+            tv_loss = [total_variance(f) for f in flows]
+            flow_loss = torch.stack(warp_loss).sum() * self.config['flow_loss_weight'] + \
+                        torch.stack(tv_loss).sum() * self.config['tv_loss_weight']
+            loss = image_loss + flow_loss
+            psnr = psnr_torch(prediction, labels, max_val=1.0)
             loss.backward()
             self.optimizer.step()
             end = time.time()
@@ -76,13 +115,22 @@ class RBPNTrainer(BaseTrainer):
         ensure_path(os.path.join(self.config['output_dir'], 'vis'))
         with torch.no_grad():
             for step, sample in enumerate(val_dataloader):
-                inputs, targets, neighbors, flows, bicubics, _ = sample
+                inputs, targets, bicubics, _ = sample
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
                     bicubics = bicubics.cuda()
-                    neighbors = [j.cuda() for j in neighbors]
-                    flows = [j.cuda().float() for j in flows]
-                sr = self.model((inputs, neighbors, flows, bicubics))
+
+                window = inputs.shape(1)
+                frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
+                labels = [target.squeeze(1) for target in targets.split(1, dim=1)]
+                bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
+
+                inputs = torch.stack(frames.pop(window // 2), dim=0)
+                neighbors = frames
+                bicubics = torch.stack(bicubics.pop(window // 2), dim=0)
+                targets = torch.stack(labels.pop(window // 2), dim=0)
+
+                sr, flows, warps = self.model((inputs, neighbors, bicubics))
 
                 sr = sr.cpu().numpy().astype(np.uint8) if torch.cuda.is_available() else sr.numpy().astype(np.uint8)
                 targets = targets.numpy().astype(np.uint8)
@@ -92,13 +140,14 @@ class RBPNTrainer(BaseTrainer):
                 else:
                     prediction += list(sr)
                     truth += list(targets.numpy())
+
         psnr = psnr_fn(prediction, truth, max_val=1.0)
         val_result = {'val_psnr': psnr}
         self._visualize(epoch, prediction[:20], os.path.join(self.config['output_dir'], 'vis', str(epoch)))
-
         return val_result
 
-
+    def eval(self, test_dataloader):
+        raise NotImplementedError
 
 
 

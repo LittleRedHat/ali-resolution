@@ -130,7 +130,7 @@ class FRVSRTrainer(BaseTrainer):
         self._visualize(epoch, prediction[0], os.path.join(self.config['output_dir'], 'vis', str(epoch)))
         return prediction, val_result
 
-    def _eval(self, test_dataloader):
+    def eval(self, test_dataloader):
         self.model.eval()
         data_config = test_dataloader.dataset.config
         scale = data_config.get('upscale_factor')
@@ -142,7 +142,8 @@ class FRVSRTrainer(BaseTrainer):
         ensure_path(save_dir)
         with torch.no_grad():
             for step, sample in enumerate(test_dataloader):
-                inputs, _, bicubics, infos = sample = sample
+                inputs, _, bicubics, tracks, ids = sample
+                print(tracks, ids)
                 batch_size, frames, c, h, w = inputs.shape
                 prediction = np.zeros((batch_size, c, h * scale, w * scale))
                 if torch.cuda.is_available():
@@ -153,22 +154,26 @@ class FRVSRTrainer(BaseTrainer):
                     for left in range(0, w, stride[1]):
                         chop = torch.zeros((batch_size, c, patch_size[0], patch_size[1]), device=inputs.device)
                         _crop = inputs[:, 0, :, top:(top + patch_size[0]), left:(left + patch_size[1])]
-                        actual_h = _crop.shape[1]
-                        actual_w = _crop.shape[2]
+                        actual_h = _crop.shape[-2]
+                        actual_w = _crop.shape[-1]
                         chop[:, :, :actual_h, :actual_w] = _crop
                         last_lr = chop
                         last_sr = F.interpolate(last_lr, scale_factor=self.config['up_scale'], mode='bilinear', align_corners=False)
                         for i in range(frames):
-                            lr = torch.zeros((batch_size, c, patch_size[0], patch_size[1]))
+                            lr = torch.zeros((batch_size, c, patch_size[0], patch_size[1]), device=inputs.device)
                             _crop = inputs[:, i, :, top:(top + patch_size[0]), left:(left + patch_size[1])]
                             lr[:, :, :actual_h, :actual_w] = _crop
                             sr, _, _, _ = self.model((lr, last_lr, last_sr))
-                        sr = sr.cpu.numpy() if torch.cuda.is_available() else sr.numpy()
-                        prediction[:, :, top:(top + patch_size[0]), left:(left + patch_size[1])] = sr[:, :, :actual_h, :actual_w]
+                        sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
+                        start_t = scale * top
+                        end_t = min(scale * top + scale * patch_size[0], h * scale)
+                        start_l = scale * left
+                        end_l = min(scale * (left + patch_size[1]), w * scale)
+                        prediction[:, :, start_t:end_t, start_l:end_l] = sr[:, :, :end_t - start_t, :end_l - start_l]
 
                 for i, sr in enumerate(prediction):
-                    track, frame = infos[i]
-                    output_dir = os.path.join(save_dir, track)
+                    track, frame = tracks[i], ids[i]
+                    output_dir = os.path.join(save_dir, str(track))
                     ensure_path(output_dir)
                     self._save_image(sr, os.path.join(output_dir, frame))
 

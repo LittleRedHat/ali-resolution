@@ -98,6 +98,7 @@ def main():
     trainer_config['mode'] = config['task']
     pp.pprint(config)
     print(model)
+    print('# model parameters:', sum(param.numel() for param in model.parameters()))
     if args['task'] == 'train':
         now = datetime.now().strftime("%m-%d-%H")
         save_dir = config['save_dir'] + '/' + now
