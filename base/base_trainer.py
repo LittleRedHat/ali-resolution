@@ -34,10 +34,14 @@ class BaseTrainer:
             model = model.cuda()
         self.model = model
         self._model = model
-        self._restore_ckpt()
+        if self.config.get('init_ckpt', None):
+            self._restore_ckpt(self.config['init_ckpt'])
         if torch.cuda.device_count() > 1:
             print("use data parallel")
             self.model = nn.DataParallel(model)
+
+        self.best_epoch = -1
+        self.best_result = 0.0
 
     def train(self, train_dataloader, val_dataloader=None, test_dataloader=None):
         epochs = self.config['epochs']
@@ -46,6 +50,8 @@ class BaseTrainer:
             for key, value in result.items():
                 self.results[key].append(value)
                 self.logger.info('{:15s}: {}'.format(key, value))
+                self.summarizer.add_scalar_summary(key, value, epoch)
+            self.summarizer.add_scalar_summary('lr', self.optimizer.param_groups[0]['lr'], epoch)
             self._save_ckpt(epoch)
             self._save_results()
 
@@ -61,12 +67,18 @@ class BaseTrainer:
         filename = os.path.join(self.config['ckpt_dir'], 'model-epoch{}.pth.tar'.format(epoch))
 
         torch.save(state, filename)
-        self._save_results()
+        if self.results['val_psnr'][-1] > self.best_result:
+            self.best_epoch = epoch
+            self.best_result = self.results['val_psnr'][-1]
+            best_epoch_filename = os.path.join(self.config['ckpt_dir'], 'model-best-pth.tar'.format(epoch))
+            torch.save(state, best_epoch_filename)
+            self.results['best_epoch'] = self.best_epoch
+            self.results['best_val_psnr'] = self.best_result
 
-    def _restore_ckpt(self):
-        if self.config.get('restore_ckpt', None) is not None:
-            self.logger.info("load model from {}".format(self.config.get("restore_ckpt")))
-            ckpt = torch.load(self.config['restore_ckpt'])
+    def _restore_ckpt(self, ckpt_path):
+        if ckpt_path is not None:
+            self.logger.info("load model from {}".format(ckpt_path))
+            ckpt = torch.load(ckpt_path)
             state = ckpt['state_dict']
             origin_state = self.model.state_dict().copy()
             for key, parameter in state.items():
