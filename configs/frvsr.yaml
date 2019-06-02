@@ -1,15 +1,15 @@
 net:
   FRVSR:
     channel: 3
-    gain: 32
+    gain: 10.0
     up_scale: 4
-    n_rb: 5
-    filter: 32
+    n_rb: 16
+    filter: 64
     flow_layer_num: 3
 save_dir: ./output/frvsr
 trainer:
   FRVSRTrainer:
-    epochs: 50
+    epochs: 200
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
@@ -17,53 +17,56 @@ trainer:
     flow_loss_weight: 1.0
     flow_var_weight: 0.001
     up_scale: 4
-    save_step_frq: 250
+    result_dir: ./output/frvsr/06-01-07/eval
+    restore_ckpt: ./output/dbpn_4x/06-01-07/ckpt/model-epoch197.pth.tar
 optimizer:
   name: Adam
   lr: 0.0001
 scheduler:
   name: none
 data:
-  name: SequentialDataset
   train:
+    name: VSRDataset
     image_dir: ./data
-    window: 10
+    window: 5
     stride: 2
-    sample_stride: 5
     upscale_factor: 4
     data_argumentation: true
     file_list: ./data/train.txt
-    patch_size: [240, 135]
+    patch_size: [64, 64]
     sample_strategy: random
-    batch_size: 4
+    batch_size: 20
     shuffle: true
     num_workers: 4
     mod: 8
+    repeat: 5
   val:
+    name: VSRDataset
     image_dir: ./data
-    window: 10
+    window: 5
     stride: 2
-    sample_stride: 5
     upscale_factor: 4
     data_argumentation: true
     file_list: ./data/val_sample.txt
-    patch_size: [240, 135]
+    patch_size: [64, 64]
     sample_strategy: start
-    batch_size: 4
+    batch_size: 20
     shuffle: false
     num_workers: 4
     mod: 8
+    repeat: 5
   test:
+    name: VSRTestDataset
     image_dir: ./data
-    window: 10
+    window: 5
     stride: 2
-    sample_stride: 5
+    sample_stride: 2
     upscale_factor: 4
     data_argumentation: false
-    file_list: ./data/test.txt
-    patch_size: [240, 135]
+    file_list: ./data/test_sisr.txt
+    patch_size: [64, 64]
     sample_strategy: start
-    batch_size: 2
+    batch_size: 20
     shuffle: false
     num_workers: 4
     mod: 8

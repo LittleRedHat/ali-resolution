@@ -29,13 +29,15 @@ def get_model(config):
     return model(model_config), model_name
 
 
-def get_scheduler(config):
+def get_scheduler(optimizer, config):
+    if 'scheduler' not in config:
+        return None
     scheduler_name = config['scheduler']['name']
     if scheduler_name == 'none':
         return None
     scheduler = getattr(scheduler_factory, scheduler_name)
     scheduler_config = {k: v for k, v in config['scheduler'].items() if k != 'name'}
-    return scheduler(**scheduler_config)
+    return scheduler(optimizer, **scheduler_config)
 
 
 def get_optimizer(params, config):
@@ -54,13 +56,13 @@ def get_trainer(config):
 
 
 def get_dataset_cls(config):
-    name = config['data']['name']
+    name = config['name']
     dataset_cls = getattr(data_factory, name)
     return dataset_cls
 
 
-def get_dataloader(dataset_cls, config, transform):
-
+def get_dataloader(config, transform):
+    dataset_cls = get_dataset_cls(config)
     dataset = dataset_cls(config, transform=transform)
     dataloader = dataset.get_dataloader(batch_size=config['batch_size'],
                                         shuffle=config['shuffle'],
@@ -73,6 +75,11 @@ def load_config(config_path):
     config = yaml.load(open(config_path))
     return config
 
+def merge_config(config, args):
+    for key, value in args.items():
+        config[key] = value
+    return config
+
 def main():
     transform = Compose([
         ToTensor(),
@@ -83,11 +90,12 @@ def main():
     torch.cuda.manual_seed_all(args['seed'])
     os.environ['CUDA_VISIBLE_DEVICES'] = args['gpus']
     config = load_config(args['config_path'])
+    config = merge_config(config, args)
     model, model_name = get_model(config)
     optimizer = get_optimizer(model.parameters(), config)
-    scheduler = get_scheduler(config)
-    dataset_cls = get_dataset_cls(config)
+    scheduler = get_scheduler(optimizer, config)
     trainer, trainer_config = get_trainer(config)
+    trainer_config['mode'] = config['task']
     pp.pprint(config)
     print(model)
     if args['task'] == 'train':
@@ -103,15 +111,17 @@ def main():
         ensure_path(trainer_config['ckpt_dir'])
         ensure_path(trainer_config['output_dir'])
         trainer = trainer(model, optimizer, scheduler, trainer_config)
-        train_dataloader = get_dataloader(dataset_cls, config['data']['train'], transform)
+        train_dataloader = get_dataloader(config['data']['train'], transform)
         # val_dataloader = None
-        val_dataloader = get_dataloader(dataset_cls, config['data']['val'], transform)
+        val_dataloader = get_dataloader(config['data']['val'], transform)
         test_dataloader = None
         trainer.train(train_dataloader, val_dataloader=val_dataloader, test_dataloader=test_dataloader)
     if args['task'] == 'eval':
         start = time.time()
+        ensure_path(trainer_config['result_dir'])
+        save_config(config, os.path.join(trainer_config['result_dir'], 'config.json'))
         ensure_path(trainer_config['output_dir'])
-        test_dataloader = get_dataloader(dataset_cls, config['data']['test'], transform)
+        test_dataloader = get_dataloader(config['data']['test'], transform)
         trainer = trainer(model, optimizer, scheduler, trainer_config)
         trainer.eval(test_dataloader)
         end = time.time()

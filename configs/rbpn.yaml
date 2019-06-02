@@ -23,13 +23,13 @@ scheduler:
   name: none
 data:
   train:
-    image_dir: /home/xxc/workspace/ali-resolution/data
+    image_dir: ./data
     window: 3
     stride: 2
     sample_stride: 5
     upscale_factor: 4
     data_argumentation: true
-    file_list: /home/xxc/workspace/ali-resolution/data/train.txt
+    file_list: ./data/train.txt
     patch_size: 128
     future_frame: true
     sample_strategy: start
@@ -37,13 +37,13 @@ data:
     shuffle: true
     num_workers: 4
   val:
-    image_dir: /home/xxc/workspace/ali-resolution/data
+    image_dir: ./data
     window: 3
     stride: 2
     sample_stride: 5
     upscale_factor: 4
     data_argumentation: false
-    file_list: /home/xxc/workspace/ali-resolution/data/val.txt
+    file_list: ./data/val.txt
     patch_size: 128
     future_frame: true
     sample_strategy: start
@@ -51,13 +51,13 @@ data:
     shuffle: false
     num_workers: 4
   test:
-    image_dir: /home/xxc/workspace/ali-resolution/data
+    image_dir: ./data
     window: 3
     stride: 2
     sample_stride: 1
     upscale_factor: 4
     data_argumentation: false
-    file_list: /home/xxc/workspace/ali-resolution/data/test.txt
+    file_list: ./data/test.txt
     patch_size: 0
     future_frame: true
     sample_strategy: start

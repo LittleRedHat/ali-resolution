@@ -127,13 +127,9 @@ class SISRDataset(Dataset):
             target_f = self.transform(target_f)
             bicubic = self.transform(bicubic)
 
-        # input_f = torch.from_numpy(np.array(input_f).astype(np.float32)).permute(2, 0, 1)
-        # bicubic = torch.from_numpy(np.array(bicubic).astype(np.float32)).permute(2, 0, 1)
-        # target_f = torch.from_numpy(np.array(target_f).astype(np.float32)).permute(2, 0, 1)
-
         track = input_file.split('/')[-2].replace('_l', '')
         frame = input_file.split('/')[-1]
-        return input_f, target_f, bicubic,track, frame
+        return input_f, target_f, bicubic, track, frame
 
     def __len__(self):
         return len(self.input_frames) * self.repeat
@@ -148,34 +144,23 @@ class SISRDataset(Dataset):
         return data_loader
 
 
-class SequentialDataset(Dataset):
+class VSRDataset(Dataset):
     def __init__(self, config, transform=None):
-        super(SequentialDataset, self).__init__()
-        image_dir = config['image_dir']
-        window = config['window']
-        stride = config['stride']
-        sample_stride = config.get('sample_stride', stride)
-        sample_strategy = config['sample_strategy']
-        upscale_factor = config['upscale_factor']
-        data_augmentation = config['data_argumentation']
-        file_list = config['file_list']
-        patch_size = config.get('patch_size', None)
-        mod = config.get("mod", 8)
-        input_list = [line.rstrip() for line in open(file_list)]
-        self.input_tracks = [os.path.join(image_dir, x + "_l") for x in input_list]
-        self.target_tracks = [os.path.join(image_dir, x + "_h_GT") for x in input_list]
-        self.input_frames, self.target_frames = self.load_frames()
-        self.track_frames = len(self.input_frames[0])
-        # sample ${window} frames with stride for train
-        self.window = window
-        self.upscale_factor = upscale_factor
+        super(VSRDataset, self).__init__()
+        self.image_dir = config['image_dir']
+        self.window = config['window']
+        self.stride = config['stride']
+        self.repeat = config['repeat']
+        self.upscale_factor = config['upscale_factor']
+        self.data_augmentation = config['data_argumentation']
+        self.patch_size = config.get('patch_size', None)
+        self.mod = config.get("mod", 8)
         self.transform = transform
-        self.data_augmentation = data_augmentation
-        self.patch_size = patch_size
-        self.stride = stride
-        self.sample_stride = sample_stride
-        self.sample_strategy = sample_strategy
-        self.mod = mod
+        input_list = [line.rstrip() for line in open(config['file_list'])]
+        self.input_tracks = [os.path.join(self.image_dir, x + "_l") for x in input_list]
+        self.target_tracks = [os.path.join(self.image_dir, x + "_h_GT") for x in input_list]
+        self.input_frames, self.target_frames = self.load_frames()
+        self.sample_strategy = config.get('sample_strategy')
 
     def load_frames(self):
         input_frames = []
@@ -186,23 +171,16 @@ class SequentialDataset(Dataset):
             targets = [os.path.join(target_track, frame) for frame in sorted(os.listdir(target_track)) if is_image_file(frame)]
             input_frames.append(frames)
             target_frames.append(targets)
-        # print(input_frames, target_frames)
-        # input_slices = []
-        # target_slices = []
-        # for s in self.stride:
-        #     input_slice = input_frames[s:self.stride]
-        #     target_slice = target_frames
 
         return input_frames, target_frames
 
     @staticmethod
-    def load_image(self, input_track_path, target_track_path, frame_id, upscale_factor):
+    def load_image(input_track_path, target_track_path, frame_id, upscale_factor):
         target_file_path = os.path.join(target_track_path, '{:03d}.bmp'.format(frame_id + 1))
         input_file_path = os.path.join(input_track_path, '{:03d}.bmp'.format(frame_id + 1))
         input_f = Image.open(input_file_path).convert('RGB')
         if os.path.exists(target_file_path):
             tw, th = input_f.width * upscale_factor, input_f.height * upscale_factor
-            # target_f = Image.open(target_file_path).convert('RGB')
             target_f = Image.open(target_file_path).convert('RGB').resize((tw, th), Image.BICUBIC)
         else:
             tw, th = input_f.width * upscale_factor, input_f.height * upscale_factor
@@ -215,7 +193,6 @@ class SequentialDataset(Dataset):
         ih, iw = input_f.size
         desired_h = ih + (mod - ih % mod) % mod
         desired_w = iw + (mod - iw % mod) % mod
-        # print(desired_h, desired_w)
         pad_iw = desired_w - iw
         pad_ih = desired_h - ih
         target_w = desired_w * upscale
@@ -224,22 +201,21 @@ class SequentialDataset(Dataset):
         pad_tw = target_w - iw * upscale
         pad_input = ImageOps.expand(input_f, (pad_ih // 2, pad_iw // 2, pad_ih - pad_ih // 2, pad_iw - pad_iw // 2))
         pad_target = ImageOps.expand(target_f, (pad_th // 2, pad_tw // 2, pad_th - pad_th // 2, pad_tw - pad_tw // 2))
-        # print(pad_input.size)
         return pad_input, pad_target
 
     @staticmethod
     def mod_unpad(inputs, targets, mod):
-        pass
+        raise NotImplementedError
 
     @staticmethod
     def sequential_augment(inputs, targets, flip_h=True, rot=True):
         info_aug = {'flip_h': False, 'flip_v': False, 'trans': False}
 
-        # if random.random() < 0.5 and flip_h:
-        #
-        #     inputs = [ImageOps.flip(img_in) for img_in in inputs]
-        #     targets = [ImageOps.flip(img_tar) for img_tar in targets]
-        #     info_aug['flip_h'] = True
+        if random.random() < 0.5 and flip_h:
+
+            inputs = [ImageOps.flip(img_in) for img_in in inputs]
+            targets = [ImageOps.flip(img_tar) for img_tar in targets]
+            info_aug['flip_h'] = True
         if rot:
             if random.random() < 0.5:
                 inputs = [ImageOps.mirror(img_in) for img_in in inputs]
@@ -271,20 +247,18 @@ class SequentialDataset(Dataset):
         return img_in, img_tar, info_patch
 
     def __getitem__(self, index):
-        track_index = index // self.stride
-        frame_id = index % self.stride
-        ids = range(frame_id, self.track_frames, self.stride)
+        track_index = index // self.repeat
+        track_frames = len(self.input_frames[track_index])
         if self.sample_strategy == 'random':
-            r = np.random.randint(len(ids) - self.window + 1)
-            frame_id = ids[r]
+            up = track_frames - self.stride * self.window
+            start_frame_id = np.random.randint(0, up)
         elif self.sample_strategy == 'start':
-            frame_id = ids[0]
-        # # frame_id += 1
+            start_frame_id = 0
         inputs = []
         targets = []
         infos = []
         for i in range(self.window):
-            id = frame_id + i * self.stride
+            id = start_frame_id + i * self.stride
             input_f, target_f = self.load_image(self.input_tracks[track_index], self.target_tracks[track_index], id, self.upscale_factor)
             if self.patch_size:
                 patch_info = {'ix': -1, 'iy': -1}
@@ -293,7 +267,6 @@ class SequentialDataset(Dataset):
             inputs.append(input_f)
             targets.append(target_f)
             infos.append((track_index, id))
-
         if self.data_augmentation:
             inputs, targets, _ = self.sequential_augment(inputs, targets)
         if self.transform:
@@ -304,11 +277,91 @@ class SequentialDataset(Dataset):
         inputs = torch.tensor(inputs)
         targets = torch.tensor(targets)
         bicubics = torch.tensor(bicubics)
-        # print(inputs.shape)
+
         return inputs, targets, bicubics, infos
 
     def __len__(self):
-        return len(self.input_tracks) * self.stride
+        return len(self.input_tracks) * self.repeat
+
+    def get_dataloader(self, batch_size=32, shuffle=True, num_workers=4):
+        data_loader = torch.utils.data.DataLoader(dataset=self,
+                                                  batch_size=batch_size,
+                                                  shuffle=shuffle,
+                                                  num_workers=num_workers,
+                                                  drop_last=False,
+                                                  pin_memory=True)
+        return data_loader
+
+
+class VSRTestDataset(Dataset):
+    def __init__(self, config, transform=None):
+        super(VSRTestDataset, self).__init__()
+        self.image_dir = config['image_dir']
+        self.window = config['window']
+        self.stride = config['stride']
+        self.upscale_factor = config['upscale_factor']
+        self.data_augmentation = config['data_argumentation']
+        self.patch_size = config.get('patch_size', None)
+        self.mod = config.get("mod", 8)
+        self.transform = transform
+        self.sample_strategy = config.get('sample_strategy', 'start')
+        file_list = config['file_list']
+        self.input_frames, self.target_frames = self._load_frames(file_list)
+
+    def _load_frames(self, file_list):
+        input_frames = []
+        target_frames = []
+        with open(file_list) as f:
+            for line in f:
+                input_file, target_file = line.strip().split()
+                input_frames.append(os.path.join(self.image_dir, input_file))
+                target_frames.append(os.path.join(self.image_dir, target_file))
+        return input_frames, target_frames
+
+    def __getitem__(self, item):
+        file = self.input_frames[item]
+        target = self.target_frames[item]
+        track = file.split('/')[-2].replace('_l', '')
+        frame = file.split('/')[-1]
+        if self.sample_strategy == 'start':
+            ids = [frame + i * self.stride for i in range(self.window)]
+        elif self.sample_strategy == 'center':
+            ids = [frame + i * self.stride for i in range(-self.window // 2 + 1, self.window // 2 + 1)]
+        else:
+            raise NotImplementedError
+        inputs = []
+        targets = []
+        bicubics = []
+        infos = []
+        for id in enumerate(ids):
+            input_file = os.path.join(track + '_l', '{:03d}.bmp'.format(id + 1))
+            target_file = os.path.join(track + '_h_GT', '{:03d}.bmp'.format(id + 1))
+            input_f, target_f = SISRDataset.load_image(input_file, target_file, self.upscale_factor)
+            if self.patch_size and not self.config.get('keep_full', False):
+                patch_info = {'ix': -1, 'iy': -1}
+                input_f, target_f, patch_info = SISRDataset.get_patch(input_f, target_f, self.patch_size, self.upscale_factor, ix=patch_info['ix'], iy=patch_info['iy'])
+
+            input_f, target_f = SISRDataset.mod_pad(input_f, target_f, self.mod, self.upscale_factor)
+            if self.data_augmentation:
+                input_f, target_f, aug_info = SISRDataset.argument(input_f, target_f)
+
+            bicubic = input_f.resize((input_f.width * self.upscale_factor, input_f.height * self.upscale_factor),
+                                     Image.BICUBIC)
+            if self.transform:
+                input_f = self.transform(input_f)
+                target_f = self.transform(target_f)
+                bicubic = self.transform(bicubic)
+            infos.append((track, id))
+            inputs.append(input_f)
+            targets.append(target_f)
+            bicubics.append(bicubic)
+        inputs = torch.cat(inputs, dim=0)
+        targets = torch.cat(targets, dim=0)
+        bicubics = torch.cat(bicubics, dim=0)
+        return inputs, targets, bicubics, infos
+
+    def __len__(self):
+        return len(self.input_frames)
 
     def get_dataloader(self, batch_size=32, shuffle=True, num_workers=4):
         data_loader = torch.utils.data.DataLoader(dataset=self,

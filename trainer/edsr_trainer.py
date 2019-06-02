@@ -68,6 +68,9 @@ class SISRTrainer(BaseTrainer):
         if val_dataloader is not None:
             prediction, val_result = self._val_epoch(epoch, val_dataloader)
             result.update(val_result)
+
+        if self.scheduler is not None:
+            self.scheduler.step()
         return result
 
     def _eval_chop(self, input, bicubic, scale, stride, patch_size):
@@ -114,9 +117,8 @@ class SISRTrainer(BaseTrainer):
         scale = data_config.get('upscale_factor')
         patch_size = data_config.get('patch_size')
         stride = data_config.get('sample_stride')
-        save_dir = os.path.join(self.config.get('output_dir'), 'test')
+        save_dir = os.path.join(self.config.get('result_dir'), 'test')
         ensure_path(save_dir)
-
         with torch.no_grad():
             for step, sample in enumerate(test_dataloader):
                 inputs, _, bicubics, tracks, frames = sample
@@ -150,7 +152,6 @@ class SISRTrainer(BaseTrainer):
                 if prediction is None:
                     prediction = list(sr)
                     truth = list(targets.numpy())
-
                 else:
                     prediction += list(sr)
                     truth += list(targets.numpy())

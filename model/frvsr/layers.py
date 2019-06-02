@@ -224,7 +224,9 @@ class FNet(nn.Module):
 
   def forward(self, *inputs):
     x = torch.cat(inputs, dim=1)
-    return self.body(x) * self.gain
+    x = self.body(x) * self.gain
+    # print(max_v)
+    return x
 
 
 class RB(nn.Module):

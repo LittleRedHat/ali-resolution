@@ -1,15 +1,15 @@
 net:
   DBPN_3:
-    scale_factor: 4
+    scale_factor: 2
     num_channels: 3
     base_filter: 32
     feat: 64
     num_stages: 3
     residual: true
-save_dir: ./output/dbpn_4x
+save_dir: ./output/dbpn_2x
 trainer:
   SISRTrainer:
-    epochs: 1000
+    epochs: 200
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
@@ -24,7 +24,7 @@ data:
   name: SISRDataset
   train:
     image_dir: ./data
-    upscale_factor: 4
+    upscale_factor: 2
     data_argumentation: true
     file_list: ./data/train_sisr.txt
     patch_size: [64, 64]
@@ -35,7 +35,7 @@ data:
     mod: 1
   val:
     image_dir: ./data
-    upscale_factor: 4
+    upscale_factor: 2
     data_argumentation: false
     file_list: ./data/val_sample_sisr.txt
     patch_size: [64, 64]

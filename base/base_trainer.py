@@ -34,8 +34,14 @@ class BaseTrainer:
             model = model.cuda()
         self.model = model
         self._model = model
-        if self.config.get('init_ckpt', None):
-            self._restore_ckpt(self.config['init_ckpt'])
+
+        mode = self.config.get('mode', 'train')
+        if mode == 'train':
+            if self.config.get('init_ckpt', None):
+                self._restore_ckpt(self.config['init_ckpt'])
+        elif mode == 'eval':
+            self._restore_ckpt((self.config['restore_ckpt']))
+
         if torch.cuda.device_count() > 1:
             print("use data parallel")
             self.model = nn.DataParallel(model)

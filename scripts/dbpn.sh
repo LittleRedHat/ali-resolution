@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 cd ..
-python train.py --config_path ./configs/dbpn_4x.yaml --gpus 1,2
+config=$1
+gpus=$2
+python train.py --config_path ./configs/${config} --gpus ${gpus}

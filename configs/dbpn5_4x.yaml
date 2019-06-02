@@ -1,12 +1,12 @@
 net:
-  DBPN_7:
+  DBPN_5:
     scale_factor: 4
     num_channels: 3
-    base_filter: 64
+    base_filter: 96
     feat: 64
-    num_stages: 7
+    num_stages: 5
     residual: true
-save_dir: ./output/dbpn7_4x
+save_dir: ./output/dbpn5_4x
 trainer:
   SISRTrainer:
     epochs: 200
@@ -14,8 +14,8 @@ trainer:
     ckpt_dir: ckpt
     log_frq: 10
     output_dir: eval
-    restore_dir: ./output/dbpn7_4x/05-31-01/ckpt/model-epoch67.pth.tar
-    result_dir: ./output/dbpn7_4x/05-31-01/eval
+    restore_dir: ./output/dbpn5_4x/05-31-01/ckpt/model-epoch67.pth.tar
+    result_dir: ./output/dbpn5_4x/05-31-01/eval
 optimizer:
   name: Adam
   lr: 0.0001

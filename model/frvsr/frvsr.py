@@ -18,6 +18,7 @@ class FRNet(nn.Module):
         up_scale = config['up_scale']
         n_rb = config['n_rb']
         super(FRNet, self).__init__()
+
         self.fnet = FNet(channel, gain=gain, f=config['filter'], n_layer=config['flow_layer_num'])
         self.warp = STN(padding_mode='border')
         self.snet = SRNet(channel, up_scale, n_rb)

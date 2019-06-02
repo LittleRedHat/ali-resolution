@@ -9,24 +9,24 @@ net:
 save_dir: ./output/dbpn_4x
 trainer:
   SISRTrainer:
-    epochs: 1000
+    epochs: 200
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
     output_dir: eval
+    result_dir: ./output/dbpn_4x/06-01-00/eval
+    restore_ckpt: ./output/dbpn_4x/06-01-00/ckpt/model-epoch134.pth.tar
 optimizer:
   name: Adam
   lr: 0.0001
   weight_decay: 0.0001
-scheduler:
-  name: none
 data:
-  name: SISRDataset
   train:
+    name: SISRDataset
     image_dir: ./data
     upscale_factor: 4
     data_argumentation: true
-    file_list: ./data/train_sisr.txt
+    file_list: ./data/train_sisr_5.txt
     patch_size: [64, 64]
     batch_size: 32
     shuffle: true
@@ -34,15 +34,30 @@ data:
     repeat: 5
     mod: 1
   val:
+    name: SISRDataset
     image_dir: ./data
     upscale_factor: 4
     data_argumentation: false
-    file_list: ./data/val_sample_sisr.txt
+    file_list: ./data/val_sisr.txt
     patch_size: [64, 64]
     batch_size: 32
     shuffle: false
     num_workers: 4
-    repeat: 5
+    repeat: 1
+    mod: 1
+  test:
+    name: SISRDataset
+    image_dir: ./data
+    upscale_factor: 4
+    sample_stride: 64
+    data_argumentation: false
+    file_list: ./data/test_sisr.txt
+    keep_full: true
+    patch_size: [64, 64]
+    batch_size: 32
+    shuffle: false
+    num_workers: 4
+    repeat: 1
     mod: 1
 
 
