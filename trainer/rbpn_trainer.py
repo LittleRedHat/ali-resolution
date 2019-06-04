@@ -16,7 +16,6 @@ import os
 from utils.utils import ensure_path
 
 
-
 class RBPNTrainer(BaseTrainer):
     def __init__(self, model, optimizer, scheduler,  config):
         super(RBPNTrainer, self).__init__(model, optimizer, scheduler, config)

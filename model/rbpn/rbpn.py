@@ -27,7 +27,7 @@ class RBPNComposer(nn.Module):
         warps = []
         for i in neighbors:
             flow = self.fnet(inputs, i)
-            warp = self.stn(i, flow[:, 0], flow[:, 0])
+            warp = self.stn(i, flow[:, 0], flow[:, 1])
             flows.append(flow)
             warps.append(warp)
         sr = self.rbpn((inputs, neighbors, flows, bicubics))
@@ -100,6 +100,7 @@ class RBPN(nn.Module):
         self.num_stages = config['num_stages']
         self.n_resblock = config['n_resblock']
         self.residual = config['residual']
+        self.res_scale = config['res_scale']
         if self.scale_factor == 2:
             kernel = 6
             stride = 2
@@ -122,21 +123,21 @@ class RBPN(nn.Module):
 
         # Res-Block1
         modules_body1 = [
-            ResnetBlock(self.base_filter, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None) \
+            ResnetBlock(self.base_filter, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None, res_scale=self.res_scale) \
             for _ in range(self.n_resblock)]
         modules_body1.append(DeconvBlock(self.base_filter, self.feat, kernel, stride, padding, activation='prelu', norm=None))
         self.res_feat1 = nn.Sequential(*modules_body1)
 
         # Res-Block2
         modules_body2 = [
-            ResnetBlock(self.feat, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None) \
+            ResnetBlock(self.feat, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None, res_scale=self.res_scale) \
             for _ in range(self.n_resblock)]
         modules_body2.append(ConvBlock(self.feat, self.feat, 3, 1, 1, activation='prelu', norm=None))
         self.res_feat2 = nn.Sequential(*modules_body2)
 
         # Res-Block3
         modules_body3 = [
-            ResnetBlock(self.feat, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None) \
+            ResnetBlock(self.feat, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm=None, res_scale=self.res_scale) \
             for _ in range(self.n_resblock)]
         modules_body3.append(ConvBlock(self.feat, self.base_filter, kernel, stride, padding, activation='prelu', norm=None))
         self.res_feat3 = nn.Sequential(*modules_body3)
@@ -155,6 +156,11 @@ class RBPN(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
+    def rescale_flow(sefl, flow, max_range, min_range):
+        max_val, _ = torch.max(flow, dim=1)
+        min_val, _ = torch.min(flow, dim=1)
+        return (max_range - min_range) / (max_val - min_val) * (flow - max_val) + max_range
+
     def forward(self, inputs):
         x, neigbors, flow, bicubic = inputs
 
@@ -162,19 +168,20 @@ class RBPN(nn.Module):
         feat_input = self.feat0(x)
         feat_frame = []
         for j in range(len(neigbors)):
-            feat_frame.append(self.feat1(torch.cat((x, neigbors[j], flow[j]), 1)))
-
+            f = flow[j]
+            # f = self.rescale_flow(f, 0.5, -0.5)
+            feat_frame.append(self.feat1(torch.cat((x, neigbors[j], f), 1)))
         # Projection
         Ht = []
         for j in range(len(neigbors)):
             h0 = self.DBPN(feat_input)
+            max_h, _ = torch.max(h0, dim=1)
             h1 = self.res_feat1(feat_frame[j])
             e = h0 - h1
             e = self.res_feat2(e)
             h = h0 + e
             Ht.append(h)
             feat_input = self.res_feat3(h)
-
         # Reconstruction
         out = torch.cat(Ht, 1)
         output = self.output(out)

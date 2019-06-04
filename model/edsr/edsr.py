@@ -20,8 +20,8 @@ class EDSR(BaseModel):
         up_scale = config.get('scale_factor')
         channels = config['num_channels']
         res_scale = config.get('res_scale', 1.0)
-        # self.sub_mean = MeanShift(sign=-1)
-        # self.add_mean = MeanShift(sign=1)
+        self.sub_mean = MeanShift(sign=-1)
+        self.add_mean = MeanShift(sign=1)
 
         # head for extract feature
         m_head = [default_conv(channels, n_feats, 3)]
@@ -43,10 +43,10 @@ class EDSR(BaseModel):
 
     def forward(self, x):
         inputs, _ = x
-        # x = self.sub_mean(inputs)
+        inputs = self.sub_mean(inputs)
         x = self.head(inputs)
         res = self.body(x)
         res += x
         x = self.tail(res)
-        # x = self.add_mean(x)
+        x = self.add_mean(x)
         return x

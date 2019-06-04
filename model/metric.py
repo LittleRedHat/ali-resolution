@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 
-def psnr(input, target, max_val=1.0):
+def psnr(input, target, max_val=1.0, eps=1e-10):
     '''
 
     :param input: batch * channel * h * w
@@ -13,7 +13,7 @@ def psnr(input, target, max_val=1.0):
     :return: psnr
     '''
     mse = np.square(input - target).mean(axis=(1, 2, 3))
-    return 10 * np.log10(max_val ** 2 / mse).mean()
+    return 10 * np.log10(max_val ** 2 / (mse + eps)).mean()
 
 
 def psnr_torch(input, target, max_val=1.0):

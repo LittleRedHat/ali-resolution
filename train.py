@@ -104,7 +104,7 @@ def main():
         save_dir = config['save_dir'] + '/' + now
         delete_path(save_dir)
         ensure_path(save_dir)
-        save_config(config, os.path.join(save_dir, 'config.json'))
+        save_config(config, os.path.join(save_dir, 'config.yaml'))
         trainer_config['log_dir'] = os.path.join(save_dir, trainer_config['log_dir'])
         trainer_config['ckpt_dir'] = os.path.join(save_dir, trainer_config['ckpt_dir'])
         trainer_config['output_dir'] = os.path.join(save_dir, trainer_config['output_dir'])
@@ -120,7 +120,7 @@ def main():
     if args['task'] == 'eval':
         start = time.time()
         ensure_path(trainer_config['result_dir'])
-        save_config(config, os.path.join(trainer_config['result_dir'], 'config.json'))
+        save_config(config, os.path.join(trainer_config['result_dir'], 'config.yaml'))
         ensure_path(trainer_config['output_dir'])
         test_dataloader = get_dataloader(config['data']['test'], transform)
         trainer = trainer(model, optimizer, scheduler, trainer_config)

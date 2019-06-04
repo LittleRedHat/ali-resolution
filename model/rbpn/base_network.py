@@ -113,7 +113,7 @@ class DeconvBlock(torch.nn.Module):
 
 
 class ResnetBlock(torch.nn.Module):
-    def __init__(self, num_filter, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm='batch'):
+    def __init__(self, num_filter, kernel_size=3, stride=1, padding=1, bias=True, activation='prelu', norm='batch', res_scale=1.0):
         super(ResnetBlock, self).__init__()
         self.conv1 = torch.nn.Conv2d(num_filter, num_filter, kernel_size, stride, padding, bias=bias)
         self.conv2 = torch.nn.Conv2d(num_filter, num_filter, kernel_size, stride, padding, bias=bias)
@@ -136,6 +136,8 @@ class ResnetBlock(torch.nn.Module):
         elif self.activation == 'sigmoid':
             self.act = torch.nn.Sigmoid()
 
+        self.res_scale = res_scale
+
     def forward(self, x):
         residual = x
         if self.norm is not None:
@@ -150,6 +152,7 @@ class ResnetBlock(torch.nn.Module):
             out = self.bn(self.conv2(out))
         else:
             out = self.conv2(out)
+        out = out * self.res_scale
 
         out = torch.add(out, residual)
 

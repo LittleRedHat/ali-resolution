@@ -6,15 +6,16 @@ net:
     base_filter: 64
     feat: 64
     num_stages: 3
-    n_resblock: 7
+    n_resblock: 5
     residual: true
-    gain: 32
+    gain: 10
     f: 16
-    flow_layer_num: 2
+    flow_layer_num: 3
+    res_scale: 0.1
 save_dir: ./output/rbpn_composer
 trainer:
   RBPNComposerTrainer:
-    epochs: 50
+    epochs: 200
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
@@ -22,8 +23,8 @@ trainer:
     up_scale: 4
     result_dir: ./output/dbpn_composer/06-01-07/eval
     restore_ckpt: ./output/dbpn_composer/06-01-07/ckpt/model-epoch197.pth.tar
-    flow_loss_weight: 1.0
-    tv_loss_weight: 0.0001
+    flow_loss_weight: 0.05
+    tv_loss_weight: 0.00001
 optimizer:
   name: Adam
   lr: 0.0001
@@ -40,7 +41,7 @@ data:
     file_list: ./data/train.txt
     patch_size: [64, 64]
     sample_strategy: random
-    batch_size: 2
+    batch_size: 4
     shuffle: true
     num_workers: 4
     mod: 8
@@ -55,7 +56,7 @@ data:
     file_list: ./data/val_sample.txt
     patch_size: [64, 64]
     sample_strategy: start
-    batch_size: 2
+    batch_size: 4
     shuffle: false
     num_workers: 4
     mod: 8
@@ -72,7 +73,7 @@ data:
     patch_size: [64, 64]
     keep_full: true
     sample_strategy: end
-    batch_size: 2
+    batch_size: 1
     shuffle: false
     num_workers: 4
     mod: 8

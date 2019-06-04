@@ -2,7 +2,7 @@ net:
   DBPN_3:
     scale_factor: 4
     num_channels: 3
-    base_filter: 96
+    base_filter: 128
     feat: 96
     num_stages: 3
     residual: true
@@ -26,9 +26,9 @@ data:
     image_dir: ./data
     upscale_factor: 4
     data_argumentation: true
-    file_list: ./data/train_sisr_5.txt
+    file_list: ./data/train_sisr.txt
     patch_size: [64, 64]
-    batch_size: 32
+    batch_size: 20
     shuffle: true
     num_workers: 8
     repeat: 5
@@ -40,7 +40,7 @@ data:
     data_argumentation: false
     file_list: ./data/val_sisr.txt
     patch_size: [64, 64]
-    batch_size: 32
+    batch_size: 20
     shuffle: false
     num_workers: 4
     repeat: 1
@@ -54,7 +54,7 @@ data:
     file_list: ./data/test_sisr.txt
     keep_full: true
     patch_size: [64, 64]
-    batch_size: 32
+    batch_size: 20
     shuffle: false
     num_workers: 4
     repeat: 1

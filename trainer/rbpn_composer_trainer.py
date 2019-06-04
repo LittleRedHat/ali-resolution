@@ -58,15 +58,10 @@ class RBPNComposerTrainer(BaseTrainer):
             labels = [target.squeeze(1) for target in targets.split(1, dim=1)]
             bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
 
-
-
             inputs = frames.pop(window // 2)
             neighbors = frames
             bicubics = bicubics.pop(window // 2)
             targets = labels.pop(window // 2)
-
-            print(inputs.shape, neighbors[0].shape, bicubics.shape, targets.shape)
-
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
                 neighbors = [x.cuda() for x in neighbors]
@@ -74,18 +69,20 @@ class RBPNComposerTrainer(BaseTrainer):
                 bicubics = bicubics.cuda()
 
             prediction, flows, warps = self.model((inputs, neighbors, bicubics))
-
-            image_loss = F.l1_loss(prediction, labels)
+            image_loss = F.l1_loss(prediction, targets)
             warp_loss = [F.l1_loss(w, inputs) for w in warps]
             tv_loss = [total_variance(f) for f in flows]
             flow_loss = torch.stack(warp_loss).sum() * self.config['flow_loss_weight'] + \
                         torch.stack(tv_loss).sum() * self.config['tv_loss_weight']
             loss = image_loss + flow_loss
-            psnr = psnr_torch(prediction, labels, max_val=1.0)
+
+            # loss = image_loss
+            psnr = psnr_torch(prediction, targets, max_val=1.0)
             loss.backward()
             self.optimizer.step()
             end = time.time()
             _loss = loss.cpu().item() if torch.cuda.is_available() else loss.item()
+            _image_loss = image_loss.cpu().item() if torch.cuda.is_available() else image_loss.item()
             _psnr = psnr.cpu().item() if torch.cuda.is_available() else psnr.item()
             total_loss += _loss
             if step % self.log_frq == 0 or step == len(train_dataloader) - 1:
@@ -99,7 +96,7 @@ class RBPNComposerTrainer(BaseTrainer):
                 self._save_image(prediction[random_index].cpu().detach().numpy(),
                                  os.path.join(self.config['output_dir'], 'sample',
                                               '{}_{}_pred.bmp'.format(epoch, step)))
-                message = 'epoch {} {} / {} loss = {} psnr = {} {:4f} min(s)'.format(epoch, step, len(train_dataloader), _loss, _psnr, (end - start) / 60)
+                message = 'epoch {} {} / {} loss = {} l1_loss = {} psnr = {} {:4f} min(s)'.format(epoch, step, len(train_dataloader), _loss, _image_loss, _psnr, (end - start) / 60)
                 self.logger.info(message)
 
         result['train_loss'] = total_loss / len(train_dataloader)
@@ -120,27 +117,27 @@ class RBPNComposerTrainer(BaseTrainer):
                     inputs = inputs.cuda()
                     bicubics = bicubics.cuda()
 
-                window = inputs.shape(1)
+                window = inputs.shape[1]
                 frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
                 labels = [target.squeeze(1) for target in targets.split(1, dim=1)]
                 bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
 
-                inputs = torch.stack(frames.pop(window // 2), dim=0)
+                inputs = frames.pop(window // 2)
                 neighbors = frames
-                bicubics = torch.stack(bicubics.pop(window // 2), dim=0)
-                targets = torch.stack(labels.pop(window // 2), dim=0)
+                bicubics = bicubics.pop(window // 2)
+                targets = labels.pop(window // 2)
 
                 sr, flows, warps = self.model((inputs, neighbors, bicubics))
-
-                sr = sr.cpu().numpy().astype(np.uint8) if torch.cuda.is_available() else sr.numpy().astype(np.uint8)
-                targets = targets.numpy().astype(np.uint8)
+                sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
+                targets = targets.numpy()
                 if prediction is None:
                     prediction = list(sr)
-                    truth = list(targets.numpy())
+                    truth = list(targets)
                 else:
                     prediction += list(sr)
-                    truth += list(targets.numpy())
-
+                    truth += list(targets)
+        prediction = np.array(prediction)
+        truth = np.array(truth)
         psnr = psnr_fn(prediction, truth, max_val=1.0)
         val_result = {'val_psnr': psnr}
         self._visualize(epoch, prediction[:20], os.path.join(self.config['output_dir'], 'vis', str(epoch)))
