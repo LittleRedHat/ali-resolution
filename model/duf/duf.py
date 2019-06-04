@@ -92,7 +92,6 @@ class DUF(nn.Module):
         '''
         pass
 
-
     def _depth_to_space(self, ):
         pass
 

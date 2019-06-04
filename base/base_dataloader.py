@@ -337,11 +337,12 @@ class VSRTestDataset(Dataset):
         inputs = []
         targets = []
         bicubics = []
+        # print(ids, frame_id)
         # tracks = []
         # frames = []
         for _, id in enumerate(ids):
-            input_file = os.path.join(track + '_l', '{:03d}.bmp'.format(id + 1))
-            target_file = os.path.join(track + '_h_GT', '{:03d}.bmp'.format(id + 1))
+            input_file = os.path.join(track + '_l', '{:03d}.bmp'.format(id))
+            target_file = os.path.join(track + '_h_GT', '{:03d}.bmp'.format(id))
             if not os.path.exists(input_file):
                 input_file = file
                 target_file = target

@@ -113,11 +113,8 @@ class RBPNComposerTrainer(BaseTrainer):
         with torch.no_grad():
             for step, sample in enumerate(val_dataloader):
                 inputs, targets, bicubics, _ = sample
-                if torch.cuda.is_available():
-                    inputs = inputs.cuda()
-                    bicubics = bicubics.cuda()
-
                 window = inputs.shape[1]
+
                 frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
                 labels = [target.squeeze(1) for target in targets.split(1, dim=1)]
                 bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
@@ -126,6 +123,12 @@ class RBPNComposerTrainer(BaseTrainer):
                 neighbors = frames
                 bicubics = bicubics.pop(window // 2)
                 targets = labels.pop(window // 2)
+
+                if torch.cuda.is_available():
+                    bicubics = bicubics.cuda()
+                    inputs = inputs.cuda()
+                    neighbors = [neigh.cuda() for neigh in neighbors]
+                    targets = targets.cuda()
 
                 sr, flows, warps = self.model((inputs, neighbors, bicubics))
                 sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
@@ -144,7 +147,73 @@ class RBPNComposerTrainer(BaseTrainer):
         return val_result
 
     def eval(self, test_dataloader):
-        raise NotImplementedError
+        self.model.eval()
+        data_config = test_dataloader.dataset.config
+        scale = data_config.get('upscale_factor')
+        patch_size = data_config.get('patch_size')
+        stride = data_config.get('sample_stride')
+        if isinstance(stride, int):
+            stride = [stride, stride]
+        save_dir = os.path.join(self.config.get('result_dir'), 'test')
+        ensure_path(save_dir)
+
+        with torch.no_grad():
+            for step, sample in enumerate(test_dataloader):
+                inputs, _, bicubics, tracks, ids = sample
+                print(tracks, ids)
+                batch_size, window, c, h, w = inputs.shape
+                prediction = np.zeros((batch_size, c, h * scale, w * scale))
+
+                frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
+                bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
+
+                inputs = frames.pop(window // 2)  # b * c * h * w
+                neighbors = frames
+                bicubics = bicubics.pop(window // 2)
+
+                if torch.cuda.is_available():
+                    bicubics = bicubics.cuda()
+                    inputs = inputs.cuda()
+                    neighbors = [neigh.cuda() for neigh in neighbors]
+
+                # note these hypothsise that all video has same resolution
+                for top in range(0, h, stride[0]):
+                    for left in range(0, w, stride[1]):
+                        chop = torch.zeros((batch_size, c, patch_size[0], patch_size[1]), device=inputs.device)
+                        bicubic_crop = torch.zeros((batch_size, c, patch_size[0] * scale, patch_size[1] * scale), device=inputs.device)
+                        neighbor_crops = []
+
+                        start_t = scale * top
+                        end_t = min(scale * top + scale * patch_size[0], h * scale)
+                        start_l = scale * left
+                        end_l = min(scale * (left + patch_size[1]), w * scale)
+
+                        _crop = inputs[:, :, top:(top + patch_size[0]), left:(left + patch_size[1])]
+                        _bicubic_crop = bicubics[:, :, start_t:end_t, start_l:end_l]
+
+                        for neigh in neighbors:
+                            neighbor_crop = torch.zeros((batch_size, c, patch_size[0], patch_size[1]), device=inputs.device)
+                            _neighbor_crop = neigh[:, :, top:(top + patch_size[0]), left:(left + patch_size[1])]
+                            actual_h = _neighbor_crop.shape[-2]
+                            actual_w = _neighbor_crop.shape[-1]
+                            neighbor_crop[:, :, :actual_h, :actual_w] = _neighbor_crop
+                            neighbor_crops.append(neighbor_crop)
+
+                        actual_h = _crop.shape[-2]
+                        actual_w = _crop.shape[-1]
+                        chop[:, :, :actual_h, :actual_w] = _crop
+                        bicubic_crop[:, :, :end_t - start_t, :end_l - start_l] = _bicubic_crop
+
+                        sr, _, _ = self.model((chop, neighbor_crops, bicubic_crop))
+                        sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
+
+                        prediction[:, :, start_t:end_t, start_l:end_l] = sr[:, :, :end_t - start_t, :end_l - start_l]
+
+                for i, sr in enumerate(prediction):
+                    track, frame = tracks[i], ids[i]
+                    output_dir = os.path.join(save_dir, str(track))
+                    ensure_path(output_dir)
+                    self._save_image(sr, os.path.join(output_dir, frame))
 
 
 

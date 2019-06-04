@@ -21,8 +21,8 @@ trainer:
     log_frq: 10
     output_dir: eval
     up_scale: 4
-    result_dir: ./output/dbpn_composer/06-01-07/eval
-    restore_ckpt: ./output/dbpn_composer/06-01-07/ckpt/model-epoch197.pth.tar
+    result_dir: ./output/rbpn_composer/06-04-01/eval2
+    restore_ckpt: ./output/rbpn_composer/06-04-01/ckpt/model-best-pth.tar
     flow_loss_weight: 0.05
     tv_loss_weight: 0.00001
 optimizer:
@@ -53,14 +53,14 @@ data:
     stride: 1
     upscale_factor: 4
     data_argumentation: false
-    file_list: ./data/val_sample.txt
+    file_list: ./data/val.txt
     patch_size: [64, 64]
     sample_strategy: start
     batch_size: 4
     shuffle: false
     num_workers: 4
     mod: 8
-    repeat: 5
+    repeat: 1
   test:
     name: VSRTestDataset
     image_dir: ./data
@@ -72,11 +72,12 @@ data:
     file_list: ./data/test_sisr.txt
     patch_size: [64, 64]
     keep_full: true
-    sample_strategy: end
-    batch_size: 1
+    sample_strategy: center
+    batch_size: 12
     shuffle: false
     num_workers: 4
     mod: 8
+    repeat: 1
 
 
 

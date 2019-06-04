@@ -8,6 +8,6 @@
 __author__ = "zookeeper"
 from .rbpn_trainer import RBPNTrainer
 from .frvsr_trainer import FRVSRTrainer
-from .dbpn_trainer import  DBPNTrainer
+from .dbpn_trainer import DBPNTrainer
 from .edsr_trainer import SISRTrainer
 from .rbpn_composer_trainer import RBPNComposerTrainer

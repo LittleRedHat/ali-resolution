@@ -14,8 +14,8 @@ trainer:
     ckpt_dir: ckpt
     log_frq: 10
     output_dir: eval
-    result_dir: ./output/dbpn_4x/06-01-00/eval
-    restore_ckpt: ./output/dbpn_4x/06-01-00/ckpt/model-epoch134.pth.tar
+    result_dir: ./output/dbpn_4x/06-04-01/eval
+    restore_ckpt: ./output/dbpn_4x/06-04-01/ckpt/model-best-pth.tar
 optimizer:
   name: Adam
   lr: 0.0001
