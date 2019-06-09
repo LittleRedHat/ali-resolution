@@ -2,21 +2,24 @@ net:
   DBPN_3:
     scale_factor: 4
     num_channels: 3
-    base_filter: 64
+    base_filter: 32
     feat: 64
-    num_stages: 7
+    num_stages: 3
     residual: true
 trainer:
   SISRTrainer:
-    epochs: 200
+    epochs: 100
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
     restore_ckpt: ckpt/model-best-pth.tar
 optimizer:
   name: Adam
-  lr: 0.0001
+  lr: 0.0004
   weight_decay: 0.0001
+scheduler:
+  name: MultiStepLR
+  milestones: [30, 50]
 data:
   train:
     name: SISRDataset
@@ -24,8 +27,8 @@ data:
     upscale_factor: 4
     data_argumentation: true
     file_list: ./data/train_sisr.txt
-    patch_size: [64, 64]
-    batch_size: 16
+    patch_size: [96, 96]
+    batch_size: 32
     shuffle: true
     num_workers: 8
     repeat: 5
@@ -36,8 +39,8 @@ data:
     upscale_factor: 4
     data_argumentation: false
     file_list: ./data/val_sisr.txt
-    patch_size: [64, 64]
-    batch_size: 16
+    patch_size: [96, 96]
+    batch_size: 32
     shuffle: false
     num_workers: 4
     repeat: 5
@@ -50,8 +53,8 @@ data:
     data_argumentation: false
     file_list: ./data/test_sisr.txt
     keep_full: true
-    patch_size: [64, 64]
-    batch_size: 12
+    patch_size: [96, 96]
+    batch_size: 24
     shuffle: false
     num_workers: 4
     repeat: 1
@@ -64,9 +67,12 @@ data:
     data_argumentation: false
     file_list: ./data/val_test_sisr.txt
     keep_full: true
-    patch_size: [64, 64]
-    batch_size: 12
+    patch_size: [96, 96]
+    batch_size: 24
     shuffle: false
     num_workers: 4
     repeat: 1
     mod: 1
+
+
+

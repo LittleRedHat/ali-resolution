@@ -8,14 +8,13 @@
 __author__ = "zookeeper"
 from base.base_trainer import BaseTrainer
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import time
-import torch.nn as nn
 from model.metric import psnr as psnr_fn, psnr_torch
 import numpy as np
 import os
 from utils.utils import ensure_path
+import json
 
 
 def total_variance(x, dims=(2, 3), reduction='mean'):
@@ -128,8 +127,7 @@ class RBPNComposerTrainer(BaseTrainer):
                     bicubics = bicubics.cuda()
                     inputs = inputs.cuda()
                     neighbors = [neigh.cuda() for neigh in neighbors]
-                    targets = targets.cuda()
-
+                    # targets = targets.cuda()
                 sr, flows, warps = self.model((inputs, neighbors, bicubics))
                 sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
                 targets = targets.numpy()
@@ -146,7 +144,7 @@ class RBPNComposerTrainer(BaseTrainer):
         self._visualize(epoch, prediction[:20], os.path.join(self.config['output_dir'], 'vis', str(epoch)))
         return val_result
 
-    def eval(self, test_dataloader):
+    def eval(self, test_dataloader, compute_score=False):
         self.model.eval()
         data_config = test_dataloader.dataset.config
         scale = data_config.get('upscale_factor')
@@ -154,16 +152,15 @@ class RBPNComposerTrainer(BaseTrainer):
         stride = data_config.get('sample_stride')
         if isinstance(stride, int):
             stride = [stride, stride]
-        save_dir = os.path.join(self.config.get('result_dir'), 'test')
+        save_dir = os.path.join(self.config['output_dir'], 'generated')
         ensure_path(save_dir)
-
+        prediction_list = None
+        target_list = None
         with torch.no_grad():
             for step, sample in enumerate(test_dataloader):
-                inputs, _, bicubics, tracks, ids = sample
-                print(tracks, ids)
+                inputs, targets, bicubics, tracks, ids = sample
                 batch_size, window, c, h, w = inputs.shape
                 prediction = np.zeros((batch_size, c, h * scale, w * scale))
-
                 frames = [x.squeeze(1) for x in inputs.split(1, dim=1)]
                 bicubics = [bicubic.squeeze(1) for bicubic in bicubics.split(1, dim=1)]
 
@@ -175,7 +172,6 @@ class RBPNComposerTrainer(BaseTrainer):
                     bicubics = bicubics.cuda()
                     inputs = inputs.cuda()
                     neighbors = [neigh.cuda() for neigh in neighbors]
-
                 # note these hypothsise that all video has same resolution
                 for top in range(0, h, stride[0]):
                     for left in range(0, w, stride[1]):
@@ -203,17 +199,30 @@ class RBPNComposerTrainer(BaseTrainer):
                         actual_w = _crop.shape[-1]
                         chop[:, :, :actual_h, :actual_w] = _crop
                         bicubic_crop[:, :, :end_t - start_t, :end_l - start_l] = _bicubic_crop
-
                         sr, _, _ = self.model((chop, neighbor_crops, bicubic_crop))
                         sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
-
                         prediction[:, :, start_t:end_t, start_l:end_l] = sr[:, :, :end_t - start_t, :end_l - start_l]
-
                 for i, sr in enumerate(prediction):
                     track, frame = tracks[i], ids[i]
                     output_dir = os.path.join(save_dir, str(track))
                     ensure_path(output_dir)
                     self._save_image(sr, os.path.join(output_dir, frame))
+                targets = targets.numpy()
+                if prediction_list is None:
+                    prediction_list = list(prediction)
+                    target_list = list(targets)
+                else:
+                    prediction_list += list(prediction)
+                    target_list += list(targets)
+
+            prediction_list = np.array(prediction_list)
+            target_list = np.array(target_list)
+            if compute_score:
+                psnr = psnr_fn(prediction_list, target_list)
+                print('psnr is {}'.format(psnr))
+                with open(os.path.join(output_dir, 'val_result.json'), 'w') as writer:
+                    json.dump({'val_psnr': psnr}, writer)
+
 
 
 

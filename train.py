@@ -8,14 +8,11 @@ from dataloder import dataloder as data_factory
 import trainer as trainer_factory
 import torch.optim.lr_scheduler as scheduler_factory
 import torch.optim as optim_factory
-
 import torch.backends.cudnn as cudnn
-
 from torchvision.transforms import ToTensor, Compose
 import random
 import os
 from utils.utils import save_config, ensure_path, delete_path
-from datetime import datetime
 import pprint
 import time
 
@@ -75,14 +72,16 @@ def load_config(config_path):
     config = yaml.load(open(config_path))
     return config
 
+
 def merge_config(config, args):
     for key, value in args.items():
         config[key] = value
     return config
 
+
 def main():
     transform = Compose([
-        ToTensor(),
+        ToTensor()
     ])
     args = create_parser()
     torch.manual_seed(args['seed'])
@@ -96,35 +95,43 @@ def main():
     scheduler = get_scheduler(optimizer, config)
     trainer, trainer_config = get_trainer(config)
     trainer_config['mode'] = config['task']
+    # trainer_config['result_dir'] = os.path.join(trainer_config['exp_dir'], config['task'])
+    trainer_config['exp_dir'] = args['exp_dir']
+
     pp.pprint(config)
     print(model)
     print('# model parameters:', sum(param.numel() for param in model.parameters()))
+    exp_dir = trainer_config['exp_dir']
     if args['task'] == 'train':
-        now = datetime.now().strftime("%m-%d-%H")
-        save_dir = config['save_dir'] + '/' + now
-        delete_path(save_dir)
-        ensure_path(save_dir)
-        save_config(config, os.path.join(save_dir, 'config.yaml'))
-        trainer_config['log_dir'] = os.path.join(save_dir, trainer_config['log_dir'])
-        trainer_config['ckpt_dir'] = os.path.join(save_dir, trainer_config['ckpt_dir'])
-        trainer_config['output_dir'] = os.path.join(save_dir, trainer_config['output_dir'])
+        delete_path(exp_dir)
+        ensure_path(exp_dir)
+        save_config(config, os.path.join(exp_dir, 'config.yaml'))
+        trainer_config['log_dir'] = os.path.join(exp_dir, trainer_config.get('log_dir', 'logs'))
+        trainer_config['ckpt_dir'] = os.path.join(exp_dir, trainer_config.get('ckpt_dir', 'ckpt'))
+        trainer_config['output_dir'] = os.path.join(exp_dir, trainer_config.get('mode'))
+        trainer_config['format'] = trainer_config.get('format', 'RGB')
+
         ensure_path(trainer_config['log_dir'])
         ensure_path(trainer_config['ckpt_dir'])
         ensure_path(trainer_config['output_dir'])
+
         trainer = trainer(model, optimizer, scheduler, trainer_config)
         train_dataloader = get_dataloader(config['data']['train'], transform)
         # val_dataloader = None
         val_dataloader = get_dataloader(config['data']['val'], transform)
         test_dataloader = None
         trainer.train(train_dataloader, val_dataloader=val_dataloader, test_dataloader=test_dataloader)
-    if args['task'] == 'eval':
+    if args['task'] == 'eval' or args['task'] == 'val':
         start = time.time()
-        ensure_path(trainer_config['result_dir'])
-        save_config(config, os.path.join(trainer_config['result_dir'], 'config.yaml'))
+        # trainer_config['log_dir'] = os.path.join(exp_dir, trainer_config.get('log_dir', 'logs'))
+        trainer_config['output_dir'] = os.path.join(exp_dir, trainer_config['mode'])
+        trainer_config['restore_ckpt'] = os.path.join(exp_dir, trainer_config['restore_ckpt'])
+        trainer_config['format'] = trainer_config.get('format', 'RGB')
         ensure_path(trainer_config['output_dir'])
-        test_dataloader = get_dataloader(config['data']['test'], transform)
+        save_config(config, os.path.join(trainer_config['output_dir'], 'config.yaml'))
+        test_dataloader = get_dataloader(config['data']['val_test'] if args['task'] == 'val' else config['data']['test'], transform)
         trainer = trainer(model, optimizer, scheduler, trainer_config)
-        trainer.eval(test_dataloader)
+        trainer.eval(test_dataloader, compute_score=False)
         end = time.time()
         print("eval use total {} min(s)".format((end - start) / 60.0))
 
@@ -134,11 +141,11 @@ def create_parser():
     parser.add_argument("--config_path", type=str, help="pipeline config file path")
     parser.add_argument("--gpus", type=str, help="gpu ids seperate by comma")
     parser.add_argument("--seed", type=int, help="seed")
+    parser.add_argument("--exp_dir", type=str, help="experiment directory")
     parser.add_argument("--task", type=str, default="train", help="which task to do")
     args, _ = parser.parse_known_args()
     if args.seed is None:
         args.seed = random.randint(-1e10, 1e10)
-
     return vars(args)
 
 

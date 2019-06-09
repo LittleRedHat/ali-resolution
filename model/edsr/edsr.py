@@ -6,8 +6,8 @@
 #  Email: 1817022566@qq.com        #
 #  Update Date: 2019-05-28         #
 ####################################
-from base.base_model import BaseModel
 __author__ = "zookeeper"
+from base.base_model import BaseModel
 from model.common.common import MeanShift, default_conv, Upsampler, ResBlock
 import torch.nn as nn
 

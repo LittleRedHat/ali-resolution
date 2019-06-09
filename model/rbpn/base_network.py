@@ -165,9 +165,9 @@ class ResnetBlock(torch.nn.Module):
 class UpBlock(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, bias=True, activation='prelu', norm=None):
         super(UpBlock, self).__init__()
-        self.up_conv1 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.up_conv3 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.up_conv1 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.up_conv3 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         h0 = self.up_conv1(x)
@@ -181,7 +181,7 @@ class UpBlockPix(torch.nn.Module):
                  norm=None):
         super(UpBlockPix, self).__init__()
         self.up_conv1 = Upsampler(scale, num_filter)
-        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
         self.up_conv3 = Upsampler(scale, num_filter)
 
     def forward(self, x):
@@ -195,10 +195,10 @@ class D_UpBlock(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, num_stages=1, bias=True, activation='prelu',
                  norm=None):
         super(D_UpBlock, self).__init__()
-        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=None)
-        self.up_conv1 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.up_conv3 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=norm)
+        self.up_conv1 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.up_conv3 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         x = self.conv(x)
@@ -212,9 +212,9 @@ class D_UpBlockPix(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, num_stages=1, scale=4, bias=True,
                  activation='prelu', norm=None):
         super(D_UpBlockPix, self).__init__()
-        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=None)
+        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=norm)
         self.up_conv1 = Upsampler(scale, num_filter)
-        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.up_conv2 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
         self.up_conv3 = Upsampler(scale, num_filter)
 
     def forward(self, x):
@@ -228,9 +228,9 @@ class D_UpBlockPix(torch.nn.Module):
 class DownBlock(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, bias=True, activation='prelu', norm=None):
         super(DownBlock, self).__init__()
-        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.down_conv2 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.down_conv2 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         l0 = self.down_conv1(x)
@@ -243,9 +243,9 @@ class DownBlockPix(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, scale=4, bias=True, activation='prelu',
                  norm=None):
         super(DownBlockPix, self).__init__()
-        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
         self.down_conv2 = Upsampler(scale, num_filter)
-        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         l0 = self.down_conv1(x)
@@ -258,10 +258,10 @@ class D_DownBlock(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, num_stages=1, bias=True, activation='prelu',
                  norm=None):
         super(D_DownBlock, self).__init__()
-        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=None)
-        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.down_conv2 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
-        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=norm)
+        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.down_conv2 = DeconvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
+        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         x = self.conv(x)
@@ -275,10 +275,10 @@ class D_DownBlockPix(torch.nn.Module):
     def __init__(self, num_filter, kernel_size=8, stride=4, padding=2, num_stages=1, scale=4, bias=True,
                  activation='prelu', norm=None):
         super(D_DownBlockPix, self).__init__()
-        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=None)
-        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.conv = ConvBlock(num_filter * num_stages, num_filter, 1, 1, 0, activation, norm=norm)
+        self.down_conv1 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
         self.down_conv2 = Upsampler(scale, num_filter)
-        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=None)
+        self.down_conv3 = ConvBlock(num_filter, num_filter, kernel_size, stride, padding, activation, norm=norm)
 
     def forward(self, x):
         x = self.conv(x)

@@ -26,7 +26,10 @@ class BaseTrainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.config = config
-        self.summarizer = SummaryLogger(config.get('log_dir', 'logs'))
+        mode = self.config.get('mode', 'train')
+        if mode == 'train':
+         self.summarizer = SummaryLogger(config.get('log_dir', 'logs'))
+
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("init logging")
         self.results = defaultdict(lambda: [])
@@ -35,11 +38,10 @@ class BaseTrainer:
         self.model = model
         self._model = model
 
-        mode = self.config.get('mode', 'train')
         if mode == 'train':
             if self.config.get('init_ckpt', None):
                 self._restore_ckpt(self.config['init_ckpt'])
-        elif mode == 'eval':
+        elif mode == 'eval' or mode == 'val':
             self._restore_ckpt((self.config['restore_ckpt']))
 
         if torch.cuda.device_count() > 1:

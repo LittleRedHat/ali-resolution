@@ -6,16 +6,13 @@ net:
     feat: 64
     num_stages: 5
     residual: true
-save_dir: ./output/dbpn5_4x
 trainer:
   SISRTrainer:
     epochs: 200
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
-    output_dir: eval
-    restore_ckpt: ./output/dbpn5_4x/06-02-18/ckpt/model-best-pth.tar
-    result_dir: ./output/dbpn5_4x/06-02-18/eval
+    restore_ckpt: ckpt/model-best-pth.tar
 optimizer:
   name: Adam
   lr: 0.0001
@@ -61,5 +58,20 @@ data:
     num_workers: 4
     repeat: 1
     mod: 1
+  val_test:
+    name: SISRDataset
+    image_dir: ./data
+    upscale_factor: 4
+    sample_stride: 64
+    data_argumentation: false
+    file_list: ./data/val_test_sisr.txt
+    keep_full: true
+    patch_size: [64, 64]
+    batch_size: 12
+    shuffle: false
+    num_workers: 4
+    repeat: 1
+    mod: 1
+
 
 

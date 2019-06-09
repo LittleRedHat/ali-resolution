@@ -17,8 +17,7 @@ trainer:
     flow_loss_weight: 1.0
     flow_var_weight: 0.001
     up_scale: 4
-    result_dir: ./output/frvsr/06-01-07/eval
-    restore_ckpt: ./output/frvsr/06-01-07/ckpt/model-epoch197.pth.tar
+    restore_ckpt: ckpt/model-best-pth.tar
 optimizer:
   name: Adam
   lr: 0.0001
@@ -70,7 +69,23 @@ data:
     batch_size: 20
     shuffle: false
     num_workers: 4
-    mod: 8
+    mod: 1
+  val_test:
+    name: VSRTestDataset
+    image_dir: ./data
+    window: 4
+    stride: 2
+    sample_stride: [64, 64]
+    upscale_factor: 4
+    data_argumentation: false
+    file_list: ./data/val_test_sisr.txt
+    patch_size: [64, 64]
+    keep_full: true
+    sample_strategy: end
+    batch_size: 20
+    shuffle: false
+    num_workers: 4
+    mod: 1
 
 
 

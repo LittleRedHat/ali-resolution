@@ -12,24 +12,24 @@ net:
     f: 16
     flow_layer_num: 3
     res_scale: 0.1
-save_dir: ./output/rbpn_composer
 trainer:
   RBPNComposerTrainer:
-    epochs: 200
+    epochs: 100
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
     output_dir: eval
     up_scale: 4
-    result_dir: ./output/rbpn_composer/06-04-01/eval2
-    restore_ckpt: ./output/rbpn_composer/06-04-01/ckpt/model-best-pth.tar
+    restore_ckpt: ckpt/model-best-pth.tar
     flow_loss_weight: 0.05
     tv_loss_weight: 0.00001
 optimizer:
   name: Adam
-  lr: 0.0001
+  lr: 0.0004
 scheduler:
-  name: none
+  name: MultiStepLR
+  gamma: 0.1
+  milestones: [40, 80]
 data:
   train:
     name: VSRDataset
@@ -44,7 +44,7 @@ data:
     batch_size: 4
     shuffle: true
     num_workers: 4
-    mod: 8
+    mod: 1
     repeat: 5
   val:
     name: VSRDataset
@@ -59,7 +59,7 @@ data:
     batch_size: 4
     shuffle: false
     num_workers: 4
-    mod: 8
+    mod: 1
     repeat: 1
   test:
     name: VSRTestDataset
@@ -76,7 +76,24 @@ data:
     batch_size: 12
     shuffle: false
     num_workers: 4
-    mod: 8
+    mod: 1
+    repeat: 1
+  val_test:
+    name: VSRTestDataset
+    image_dir: ./data
+    window: 5
+    stride: 1
+    sample_stride: [64, 64]
+    upscale_factor: 4
+    data_argumentation: false
+    file_list: ./data/val_test_sisr.txt
+    patch_size: [64, 64]
+    keep_full: true
+    sample_strategy: center
+    batch_size: 12
+    shuffle: false
+    num_workers: 4
+    mod: 1
     repeat: 1
 
 

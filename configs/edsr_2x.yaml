@@ -5,20 +5,19 @@ net:
     scale_factor: 2
     num_channels: 3
     res_scale: 1.0
-save_dir: ./output/edsr_2x
 trainer:
   SISRTrainer:
-    epochs: 1000
+    epochs: 100
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
-    output_dir: eval
 optimizer:
   name: Adam
-  lr: 0.0001
+  lr: 0.0004
   weight_decay: 0.0001
 scheduler:
-  name: none
+  name: MultiStepLR
+  milestones: [30, 50]
 data:
   train:
     name: SISRDataset
@@ -37,7 +36,7 @@ data:
     image_dir: ./data
     upscale_factor: 2
     data_argumentation: false
-    file_list: ./data/val_sample_sisr.txt
+    file_list: ./data/val_sisr.txt
     patch_size: [64, 64]
     batch_size: 48
     shuffle: false
@@ -53,7 +52,21 @@ data:
     file_list: ./data/test_sisr.txt
     keep_full: true
     patch_size: [64, 64]
-    batch_size: 16
+    batch_size: 48
+    shuffle: false
+    num_workers: 4
+    repeat: 1
+    mod: 1
+  val_test:
+    name: SISRDataset
+    image_dir: ./data
+    upscale_factor: 2
+    sample_stride: 64
+    data_argumentation: false
+    file_list: ./data/val_test_sisr.txt
+    keep_full: true
+    patch_size: [64, 64]
+    batch_size: 20
     shuffle: false
     num_workers: 4
     repeat: 1

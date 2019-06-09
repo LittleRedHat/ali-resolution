@@ -212,6 +212,8 @@ class DBPN_3(nn.Module):
         scale_factor = config.get("scale_factor")
         self.residual = config.get('residual', False)
         self.scale_factor = scale_factor
+        self.norm = config.get('norm', None)
+        self.act = config.get('act', 'prelu')
 
         if scale_factor == 2:
             kernel = 6
@@ -227,10 +229,10 @@ class DBPN_3(nn.Module):
             padding = 2
 
         # Initial Feature Extraction
-        self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation='prelu',
-                               norm=None)
-        self.feat1 = ConvBlock(feat, base_filter, 1, 1, 0, activation='prelu',
-                               norm=None)
+        self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation=self.act,
+                               norm=self.norm)
+        self.feat1 = ConvBlock(feat, base_filter, 1, 1, 0, activation=self.act,
+                               norm=self.norm)
         # Back-projection stages
         self.up1 = UpBlock(base_filter, kernel, stride, padding)
         self.down1 = DownBlock(base_filter, kernel, stride, padding)

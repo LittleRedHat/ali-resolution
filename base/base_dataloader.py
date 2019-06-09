@@ -16,6 +16,8 @@ import random
 import pyflow
 
 
+
+
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg", ".bmp"])
 
@@ -33,7 +35,9 @@ class SISRDataset(Dataset):
         # self.mode = config['mode']
         self.repeat = config.get('repeat', 1)
         self.transform = transform
+        self.format = config.get('format', 'RGB')
         self.config = config
+
 
     def _load_frames(self, file_list):
         input_frames = []
@@ -46,11 +50,11 @@ class SISRDataset(Dataset):
         return input_frames, target_frames
 
     @staticmethod
-    def load_image(input_file, target_file, upscale_factor):
-        input_f = Image.open(input_file).convert('RGB')
+    def load_image(input_file, target_file, upscale_factor, image_format):
+        input_f = Image.open(input_file).convert(image_format)
         if os.path.exists(target_file):
             tw, th = input_f.width * upscale_factor, input_f.height * upscale_factor
-            target_f = Image.open(target_file).convert('RGB')
+            target_f = Image.open(target_file).convert(image_format)
             if tw != target_f.width or th != target_f.height:
                 target_f = target_f.resize((tw, th), Image.BICUBIC)
         else:
@@ -113,9 +117,9 @@ class SISRDataset(Dataset):
         return img_in, img_tar, info_aug
 
     def __getitem__(self, item):
-        frame_id = item // self.repeat
-        input_file = self.input_frames[frame_id]
-        target_file = self.target_frames[frame_id]
+        index = item // self.repeat
+        input_file = self.input_frames[index]
+        target_file = self.target_frames[index]
         input_f, target_f = self.load_image(input_file, target_file, self.upscale_factor)
         if self.patch_size and not self.config.get('keep_full', False):
             input_f, target_f, _ = self.get_patch(input_f, target_f, self.patch_size, self.upscale_factor, ix=-1, iy=-1)

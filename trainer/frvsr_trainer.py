@@ -12,6 +12,7 @@ from model.metric import psnr as psnr_fn
 import numpy as np
 from utils.utils import ensure_path
 import os
+import json
 
 
 def total_variance(x, dims=(2, 3), reduction='mean'):
@@ -130,7 +131,7 @@ class FRVSRTrainer(BaseTrainer):
         self._visualize(epoch, prediction[0], os.path.join(self.config['output_dir'], 'vis', str(epoch)))
         return prediction, val_result
 
-    def eval(self, test_dataloader):
+    def eval(self, test_dataloader, compute_score=False):
         self.model.eval()
         data_config = test_dataloader.dataset.config
         scale = data_config.get('upscale_factor')
@@ -138,12 +139,13 @@ class FRVSRTrainer(BaseTrainer):
         stride = data_config.get('sample_stride')
         if isinstance(stride, int):
             stride = [stride, stride]
-        save_dir = os.path.join(self.config.get('result_dir'), 'test')
+        save_dir = os.path.join(self.config['output_dir'], 'generated')
         ensure_path(save_dir)
         with torch.no_grad():
+            prediction_list = None
+            target_list = None
             for step, sample in enumerate(test_dataloader):
-                inputs, _, bicubics, tracks, ids = sample
-                print(tracks, ids)
+                inputs, targets, bicubics, tracks, ids = sample
                 batch_size, frames, c, h, w = inputs.shape
                 prediction = np.zeros((batch_size, c, h * scale, w * scale))
                 if torch.cuda.is_available():
@@ -176,6 +178,21 @@ class FRVSRTrainer(BaseTrainer):
                     output_dir = os.path.join(save_dir, str(track))
                     ensure_path(output_dir)
                     self._save_image(sr, os.path.join(output_dir, frame))
+                targets = targets.numpy()
+                if prediction_list is None:
+                    prediction_list = list(prediction)
+                    target_list = list(targets)
+                else:
+                    prediction_list += list(prediction)
+                    target_list += list(targets)
+
+            prediction_list = np.array(prediction_list)
+            target_list = np.array(target_list)
+            if compute_score:
+                psnr = psnr_fn(prediction_list, target_list)
+                print('psnr is {}'.format(psnr))
+                with open(os.path.join(output_dir, 'val_result.json'), 'w') as writer:
+                    json.dump({'val_psnr': psnr}, writer)
 
 
 
