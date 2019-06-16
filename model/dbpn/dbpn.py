@@ -8,7 +8,7 @@
 __author__ = 'zookeeper'
 import torch
 import torch.nn as nn
-from model.rbpn.base_network import UpBlock, DownBlock, D_UpBlock, DeconvBlock, ConvBlock, D_DownBlock, Upsampler
+from model.rbpn.base_network import UpBlock, DownBlock, D_UpBlock, ConvBlock, D_DownBlock, UpBlockPix, DownBlockPix
 
 
 class DBPN_5(nn.Module):
@@ -201,9 +201,9 @@ class DBPN_7(nn.Module):
         return x
 
 
-class DBPN_3(nn.Module):
+class DBPN_Pixel_3(nn.Module):
     def __init__(self, config):
-        super(DBPN_3, self).__init__()
+        super(DBPN_Pixel_3, self).__init__()
 
         num_channels = config.get("num_channels")
         base_filter = config.get("base_filter")
@@ -215,18 +215,9 @@ class DBPN_3(nn.Module):
         self.norm = config.get('norm', None)
         self.act = config.get('act', 'prelu')
 
-        if scale_factor == 2:
-            kernel = 6
-            stride = 2
-            padding = 2
-        elif scale_factor == 4:
-            kernel = 8
-            stride = 4
-            padding = 2
-        elif scale_factor == 8:
-            kernel = 12
-            stride = 8
-            padding = 2
+        self.kernel = config.get('kernel', 8)
+        self.stride = config.get('stride', 4)
+        self.padding = config.get('padding', 2)
 
         # Initial Feature Extraction
         self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation=self.act,
@@ -234,11 +225,11 @@ class DBPN_3(nn.Module):
         self.feat1 = ConvBlock(feat, base_filter, 1, 1, 0, activation=self.act,
                                norm=self.norm)
         # Back-projection stages
-        self.up1 = UpBlock(base_filter, kernel, stride, padding)
-        self.down1 = DownBlock(base_filter, kernel, stride, padding)
-        self.up2 = UpBlock(base_filter, kernel, stride, padding)
-        self.down2 = DownBlock(base_filter, kernel, stride, padding)
-        self.up3 = UpBlock(base_filter, kernel, stride, padding)
+        self.up1 = UpBlockPix(base_filter, self.kernel, self.stride, self.padding, self.scale_factor)
+        self.down1 = DownBlockPix(base_filter, self.kernel, self.stride, self.padding, self.scale_factor)
+        self.up2 = UpBlockPix(base_filter, self.kernel, self.stride, self.padding, self.scale_factor)
+        self.down2 = DownBlockPix(base_filter, self.kernel, self.stride, self.padding, self.scale_factor)
+        self.up3 = UpBlockPix(base_filter, self.kernel, self.stride, self.padding, self.scale_factor)
         # Reconstruction
         self.output_conv = ConvBlock(num_stages * base_filter, num_channels, 3, 1,
                                      1, activation=None, norm=None)
@@ -261,6 +252,68 @@ class DBPN_3(nn.Module):
         h1 = self.up1(x)
         h2 = self.up2(self.down1(h1))
         h3 = self.up3(self.down2(h2))
+
+        x = self.output_conv(torch.cat((h3, h2, h1), 1))
+        if self.residual:
+            x = x + bicubic
+        return x
+
+
+
+
+class DBPN_3(nn.Module):
+    def __init__(self, config):
+        super(DBPN_3, self).__init__()
+
+        num_channels = config.get("num_channels")
+        base_filter = config.get("base_filter")
+        feat = config.get("feat")
+        num_stages = config.get("num_stages")
+        scale_factor = config.get("scale_factor")
+        self.residual = config.get('residual', False)
+        self.scale_factor = scale_factor
+        self.norm = config.get('norm', None)
+        self.act = config.get('act', 'prelu')
+
+        self.kernel = config.get('kernel', 8)
+        self.stride = config.get('stride', 4)
+        self.padding = config.get('padding', 2)
+
+        # Initial Feature Extraction
+        self.feat0 = ConvBlock(num_channels, feat, 3, 1, 1, activation=self.act,
+                               norm=self.norm)
+        self.feat1 = ConvBlock(feat, base_filter, 1, 1, 0, activation=self.act,
+                               norm=self.norm)
+        # Back-projection stages
+        self.up1 = UpBlock(base_filter, self.kernel, self.stride, self.padding)
+        self.down1 = DownBlock(base_filter, self.kernel, self.stride, self.padding)
+        self.up2 = UpBlock(base_filter, self.kernel, self.stride, self.padding)
+        self.down2 = DownBlock(base_filter, self.kernel, self.stride, self.padding)
+        self.up3 = UpBlock(base_filter, self.kernel, self.stride, self.padding)
+        # Reconstruction
+        self.output_conv = ConvBlock(num_stages * base_filter, num_channels, 3, 1,
+                                     1, activation=None, norm=None)
+        for m in self.modules():
+            classname = m.__class__.__name__
+            if classname.find('Conv2d') != -1:
+                torch.nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif classname.find('ConvTranspose2d') != -1:
+                torch.nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x):
+        x, bicubic = x
+        x = self.feat0(x)
+        x = self.feat1(x)
+
+        h1 = self.up1(x)
+        h2 = self.up2(self.down1(h1))
+        h3 = self.up3(self.down2(h2))
+
+        # print(h1.shape, h2.shape, h3.shape)
 
         x = self.output_conv(torch.cat((h3, h2, h1), 1))
         if self.residual:

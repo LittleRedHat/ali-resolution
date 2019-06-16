@@ -16,8 +16,6 @@ import random
 import pyflow
 
 
-
-
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg", ".bmp"])
 
@@ -31,13 +29,12 @@ class SISRDataset(Dataset):
         self.data_augmentation = config['data_argumentation']
         self.patch_size = config['patch_size']
         self.upscale_factor = config['upscale_factor']
-        self.mod = config.get("mod", 8)
+        self.mod = config.get("mod", 1)
         # self.mode = config['mode']
         self.repeat = config.get('repeat', 1)
         self.transform = transform
         self.format = config.get('format', 'RGB')
         self.config = config
-
 
     def _load_frames(self, file_list):
         input_frames = []
@@ -120,7 +117,7 @@ class SISRDataset(Dataset):
         index = item // self.repeat
         input_file = self.input_frames[index]
         target_file = self.target_frames[index]
-        input_f, target_f = self.load_image(input_file, target_file, self.upscale_factor)
+        input_f, target_f = self.load_image(input_file, target_file, self.upscale_factor, self.format)
         if self.patch_size and not self.config.get('keep_full', False):
             input_f, target_f, _ = self.get_patch(input_f, target_f, self.patch_size, self.upscale_factor, ix=-1, iy=-1)
         input_f, target_f = self.mod_pad(input_f, target_f, self.mod, self.upscale_factor)
@@ -166,6 +163,8 @@ class VSRDataset(Dataset):
         self.target_tracks = [os.path.join(self.image_dir, x + "_h_GT") for x in input_list]
         self.input_frames, self.target_frames = self.load_frames()
         self.sample_strategy = config.get('sample_strategy')
+        self.format = config.get('format', 'RGB')
+        self.config = config
 
     def load_frames(self):
         input_frames = []
@@ -180,13 +179,13 @@ class VSRDataset(Dataset):
         return input_frames, target_frames
 
     @staticmethod
-    def load_image(input_track_path, target_track_path, frame_id, upscale_factor):
+    def load_image(input_track_path, target_track_path, frame_id, upscale_factor, image_format):
         target_file_path = os.path.join(target_track_path, '{:03d}.bmp'.format(frame_id + 1))
         input_file_path = os.path.join(input_track_path, '{:03d}.bmp'.format(frame_id + 1))
-        input_f = Image.open(input_file_path).convert('RGB')
+        input_f = Image.open(input_file_path).convert(image_format)
         if os.path.exists(target_file_path):
             tw, th = input_f.width * upscale_factor, input_f.height * upscale_factor
-            target_f = Image.open(target_file_path).convert('RGB').resize((tw, th), Image.BICUBIC)
+            target_f = Image.open(target_file_path).convert(image_format).resize((tw, th), Image.BICUBIC)
         else:
             tw, th = input_f.width * upscale_factor, input_f.height * upscale_factor
             # target_f = input_f.resize((tw, th), Image.BICUBIC)
@@ -264,7 +263,7 @@ class VSRDataset(Dataset):
         infos = []
         for i in range(self.window):
             id = start_frame_id + i * self.stride
-            input_f, target_f = self.load_image(self.input_tracks[track_index], self.target_tracks[track_index], id, self.upscale_factor)
+            input_f, target_f = self.load_image(self.input_tracks[track_index], self.target_tracks[track_index], id, self.upscale_factor, self.format)
             if self.patch_size:
                 patch_info = {'ix': -1, 'iy': -1}
                 input_f, target_f, patch_info = self.get_patch(input_f, target_f, self.patch_size, self.upscale_factor, ix=patch_info['ix'], iy=patch_info['iy'])

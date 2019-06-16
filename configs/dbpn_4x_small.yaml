@@ -6,20 +6,24 @@ net:
     feat: 64
     num_stages: 3
     residual: true
-    norm: instance
-    act: lrelu
 save_dir: ./output/dbpn_4x
 trainer:
   SISRTrainer:
-    epochs: 200
+    epochs: 100
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
     restore_ckpt: ckpt/model-best-pth.tar
+    gradient_loss_weight: 1.0
+    clip_grad: 2.5
 optimizer:
   name: Adam
   lr: 0.0001
   weight_decay: 0.0001
+scheduler:
+  name: MultiStepLR
+  gamma: 0.1
+  milestones: [40, 80]
 data:
   train:
     name: SISRDataset

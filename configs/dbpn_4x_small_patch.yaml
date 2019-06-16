@@ -1,7 +1,7 @@
 net:
   DBPN_3:
     scale_factor: 4
-    num_channels: 1
+    num_channels: 3
     base_filter: 32
     feat: 64
     num_stages: 3
@@ -14,7 +14,8 @@ trainer:
     ckpt_dir: ckpt
     log_frq: 10
     restore_ckpt: ckpt/model-best-pth.tar
-    format: YCbCr
+    gradient_loss_weight: 1.0
+    clip_grad: 2.5
 optimizer:
   name: Adam
   lr: 0.0001
@@ -30,55 +31,50 @@ data:
     upscale_factor: 4
     data_argumentation: true
     file_list: ./data/train_sisr.txt
-    patch_size: [64, 64]
-    batch_size: 32
+    patch_size: [32, 32]
+    batch_size: 48
     shuffle: true
     num_workers: 8
     repeat: 5
     mod: 1
-    format: YCbCr
   val:
     name: SISRDataset
     image_dir: ./data
     upscale_factor: 4
     data_argumentation: false
     file_list: ./data/val_sisr.txt
-    patch_size: [64, 64]
-    batch_size: 32
+    patch_size: [32, 32]
+    batch_size: 48
     shuffle: false
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
   test:
     name: SISRDataset
     image_dir: ./data
     upscale_factor: 4
-    sample_stride: 64
+    sample_stride: 32
     data_argumentation: false
     file_list: ./data/test_sisr.txt
     keep_full: true
-    patch_size: [64, 64]
-    batch_size: 32
+    patch_size: [32, 32]
+    batch_size: 48
     shuffle: false
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
   val_test:
     name: SISRDataset
     image_dir: ./data
-    upscale_factor: 4
-    sample_stride: 64
+    upscale_factor: 32
     data_argumentation: false
     file_list: ./data/val_test_sisr.txt
     keep_full: true
-    patch_size: [64, 64]
+    patch_size: [32, 32]
     batch_size: 32
     shuffle: false
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
 
 

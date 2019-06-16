@@ -1,7 +1,7 @@
 net:
   DBPN_3:
     scale_factor: 4
-    num_channels: 1
+    num_channels: 3
     base_filter: 32
     feat: 64
     num_stages: 3
@@ -9,15 +9,17 @@ net:
 save_dir: ./output/dbpn_4x
 trainer:
   SISRTrainer:
-    epochs: 100
+    epochs: 50
     log_dir: logs
     ckpt_dir: ckpt
     log_frq: 10
+    init_ckpt: ./exps/dbpn_32_64/ckpt/model-best-pth.tar
     restore_ckpt: ckpt/model-best-pth.tar
-    format: YCbCr
+    gradient_loss_weight: 1.0
+    clip_grad: 2.5
 optimizer:
   name: Adam
-  lr: 0.0001
+  lr: 0.00001
   weight_decay: 0.0001
 scheduler:
   name: MultiStepLR
@@ -36,7 +38,6 @@ data:
     num_workers: 8
     repeat: 5
     mod: 1
-    format: YCbCr
   val:
     name: SISRDataset
     image_dir: ./data
@@ -49,7 +50,6 @@ data:
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
   test:
     name: SISRDataset
     image_dir: ./data
@@ -64,7 +64,6 @@ data:
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
   val_test:
     name: SISRDataset
     image_dir: ./data
@@ -79,6 +78,3 @@ data:
     num_workers: 4
     repeat: 1
     mod: 1
-    format: YCbCr
-
-

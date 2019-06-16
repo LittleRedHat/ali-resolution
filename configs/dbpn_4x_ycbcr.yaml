@@ -2,11 +2,10 @@ net:
   DBPN_3:
     scale_factor: 4
     num_channels: 1
-    base_filter: 32
-    feat: 64
+    base_filter: 96
+    feat: 96
     num_stages: 3
     residual: true
-save_dir: ./output/dbpn_4x
 trainer:
   SISRTrainer:
     epochs: 100
@@ -17,12 +16,11 @@ trainer:
     format: YCbCr
 optimizer:
   name: Adam
-  lr: 0.0001
+  lr: 0.0004
   weight_decay: 0.0001
 scheduler:
   name: MultiStepLR
-  gamma: 0.1
-  milestones: [40, 80]
+  milestones: [30, 50]
 data:
   train:
     name: SISRDataset
@@ -47,7 +45,7 @@ data:
     batch_size: 32
     shuffle: false
     num_workers: 4
-    repeat: 1
+    repeat: 5
     mod: 1
     format: YCbCr
   test:
@@ -59,7 +57,7 @@ data:
     file_list: ./data/test_sisr.txt
     keep_full: true
     patch_size: [64, 64]
-    batch_size: 32
+    batch_size: 24
     shuffle: false
     num_workers: 4
     repeat: 1
@@ -74,11 +72,12 @@ data:
     file_list: ./data/val_test_sisr.txt
     keep_full: true
     patch_size: [64, 64]
-    batch_size: 32
+    batch_size: 24
     shuffle: false
     num_workers: 4
     repeat: 1
     mod: 1
     format: YCbCr
+
 
 

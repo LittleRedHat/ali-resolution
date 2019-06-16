@@ -16,7 +16,28 @@ from model.metric import psnr_torch
 import os
 from utils.utils import ensure_path
 import json
-from utils.utils import ycbcr2rgb, rgb2ycbcr
+from utils.utils import ycbcr2rgb
+
+
+def get_l1_gradient(x):
+    h_grad = x[:, :, 1:, :] - x[:, :, :-1, :]
+    w_grad = x[:, :, :, 1:] - x[:, :, :, :-1]
+    return h_grad, w_grad
+
+
+def get_gradient_loss(use_gray = False):
+    def _gradient_loss_fn(inputs, targets):
+        if use_gray:
+            inputs = 0.299 * inputs[:, 0, :, :] + 0.587 * inputs[:, 1, :, :] + 0.114 * inputs[:, 2, :, :]
+            inputs = inputs.unsqueeze(1)
+            targets = 0.299 * targets[:, 0, :, :] + 0.587 * targets[:, 1, :, :] + 0.114 * targets[:, 2, :, :]
+            targets = targets.unsqueeze(1)
+
+        h_grad_1, w_grad_1 = get_l1_gradient(inputs)
+        h_grad_2, w_grad_2 = get_l1_gradient(targets)
+        loss = nn.L1Loss()(h_grad_1, h_grad_2) + nn.L1Loss()(w_grad_1, w_grad_2)
+        return loss
+    return _gradient_loss_fn
 
 
 class SISRTrainer(BaseTrainer):
@@ -25,8 +46,7 @@ class SISRTrainer(BaseTrainer):
         self.log_frq = self.config.get('log_frq', 1000)
         self.log_dir = self.config.get('log_dir', 'logs')
         self.loss_fn = nn.L1Loss()
-
-        # self.loss_fn = nn.MSELoss(size_average=True)
+        self.gradient_loss_fn = get_gradient_loss(use_gray=True)
 
     def _train_epoch(self, epoch, train_dataloader, val_dataloader=None, test_dataloader=None):
         self.model.train()
@@ -51,11 +71,20 @@ class SISRTrainer(BaseTrainer):
 
             sr = self.model((inputs, bicubics))
             loss = self.loss_fn(sr, targets)
+            gradient_loss = self.gradient_loss_fn(sr, targets)
+            loss = loss + self.config.get('gradient_loss_weight', 0.0) * gradient_loss
             psnr = psnr_torch(sr, targets, max_val=1.0)
             loss.backward()
+
+            grad_clip_value = self.config.get('grad_clip_value', -1)
+            if grad_clip_value != -1:
+                nn.utils.clip_grad_value_(self.model.parameters(), grad_clip_value)
+
             self.optimizer.step()
             _loss = loss.cpu().item() if torch.cuda.is_available() else loss.item()
+            _gradient_loss = gradient_loss.cpu().item() if torch.cuda.is_available() else gradient_loss.item()
             _psnr = psnr.cpu().item() if torch.cuda.is_available() else psnr.item()
+
             epoch_total_loss += _loss
             if step % self.log_frq == 0 or step == len(train_dataloader) - 1:
                 random_index = np.random.randint(0, inputs.shape[0])
@@ -82,7 +111,7 @@ class SISRTrainer(BaseTrainer):
                                  os.path.join(self.config['output_dir'], 'sample',
                                               '{}_{}_pred.bmp'.format(epoch, step)))
                 end = time.time()
-                message = 'epoch {} {} / {} loss = {} psnr = {}, {:4f} min(s)'.format(epoch, step, len(train_dataloader), _loss, _psnr,  (end - start) / 60)
+                message = 'epoch {} {} / {} loss = {} gradient_loss = {} psnr = {}, {:4f} min(s)'.format(epoch, step, len(train_dataloader), _loss, _gradient_loss, _psnr,  (end - start) / 60)
                 self.logger.info(message)
 
         result['train_loss'] = epoch_total_loss / len(train_dataloader)
@@ -152,19 +181,19 @@ class SISRTrainer(BaseTrainer):
                 _bicubics = bicubics
                 if self.config['format'] == 'YCbCr':
                     inputs = inputs[:, 0].unsqueeze(1)
-                    bicubics = bicubics[:, 0].unsuqeeze(1)
+                    bicubics = bicubics[:, 0].unsqueeze(1)
                 for i, input in enumerate(inputs):
                     sr = self._eval_chop(input, bicubics[i], scale, stride, [patch_size[1], patch_size[0]])
                     track, frame = tracks[i], frames[i]
                     output_dir = os.path.join(save_dir, track)
                     ensure_path(output_dir)
-                    bicubic_i = _bicubics[i]
+                    bicubic_i = _bicubics[i].cpu().numpy() if torch.cuda.is_available() else _bicubics[i].numpy()
                     if self.config['format'] == 'YCbCr':
                         _sr = np.zeros_like(bicubic_i)
                         _sr[0, :, :] = sr[0, :, :]
                         _sr[1, :, :] = bicubic_i[1, :, :]
                         _sr[2, :, :] = bicubic_i[2, :, :]
-                        _sr = ycbcr2rgb(_sr.transpose(1, 2, 0)).transpose(2, 0, 1)
+                        sr = ycbcr2rgb(_sr.transpose(1, 2, 0)).transpose(2, 0, 1)
                     self._save_image(sr, os.path.join(output_dir, frame))
                     target_list.append(targets[i].numpy())
                     prediction_list.append(sr)
@@ -180,16 +209,13 @@ class SISRTrainer(BaseTrainer):
         self.model.eval()
         prediction = None  ## frames * batch * channel
         truth = None
+        bicubic_list = None
         with torch.no_grad():
             for step, sample in enumerate(val_dataloader):
                 inputs, targets, bicubics, _, _ = sample  ## batch * channel * height * width
-                # inputs = inputs.squeeze(1)
-                # targets = targets.squeeze(1)
-                # bicubics = bicubics.squeeze(1)
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
                     bicubics = bicubics.cuda()
-
                 _inputs = inputs
                 _bicubics = bicubics
                 _targets = targets
@@ -197,27 +223,30 @@ class SISRTrainer(BaseTrainer):
                     inputs = inputs[:, 0].unsqueeze(1)
                     bicubics = bicubics[:, 0].unsqueeze(1)
                     targets = targets[:, 0].unsqueeze(1)
-
                 sr = self.model((inputs, bicubics))
                 sr = sr.cpu().numpy() if torch.cuda.is_available() else sr.numpy()
+                _bicubics = _bicubics.cpu().numpy() if torch.cuda.is_available() else _bicubics.numpy()
                 if prediction is None:
                     prediction = list(sr)
                     truth = list(targets.numpy())
+                    bicubic_list = list(_bicubics)
                 else:
                     prediction += list(sr)
                     truth += list(targets.numpy())
+                    bicubic_list += list(_bicubics)
         prediction = np.array(prediction)  ## len(val_dataloader) * frame * c * h * w
         truth = np.array(truth)
+        bicubic_list = np.array(bicubic_list)
         # print(prediction.shape, truth.shape)
         psnr = psnr_fn(prediction, truth, max_val=1.0)
         val_result = {'val_psnr': psnr}
         sampled_sr = prediction[:20]
-        sampled_bicubic = bicubics[:20]
+        sampled_bicubic = bicubic_list[:20]
         if self.config['format'] == 'YCbCr':
             _sr = np.zeros_like(sampled_bicubic)
-            _sr[:, 0, :, :] = prediction[:, 0, :, :]
+            _sr[:, 0, :, :] = sampled_sr[:, 0, :, :]
             _sr[:, 1, :, :] = sampled_bicubic[:, 1, :, :]
             _sr[:, 2, :, :] = sampled_bicubic[:, 2, :, :]
-            sampled_sr = ycbcr2rgb(_sr.transpose(1, 2, 0)).transpose(2, 0, 1)
+            sampled_sr = np.array([ycbcr2rgb(item.transpose(1, 2, 0)).transpose(2, 0, 1) for item in _sr])
         self._visualize(epoch, sampled_sr, os.path.join(self.config['output_dir'], 'vis', str(epoch)))
         return prediction, val_result

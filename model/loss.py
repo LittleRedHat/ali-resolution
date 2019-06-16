@@ -4,3 +4,8 @@ __author__ = 'zookeeper'
 
 import torch
 import torch.nn as nn
+
+class TVLoss(nn.Module):
+    pass
+
+

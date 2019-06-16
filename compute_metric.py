@@ -8,6 +8,7 @@ import fnmatch
 from PIL import Image
 import numpy as np
 import json
+from utils.utils import rgb2ycbcr
 
 
 def psnr_fn(input, target, max_val=1.0, eps=1e-10):
@@ -31,10 +32,11 @@ class Metric:
     def compute_score(self):
         psnrs = self._compute_psnr()
         vmafs = self._compute_vmaf()
-        mean_psnr = np.mean(list(psnrs.values()))
+        mean_psnr = np.mean(np.array(list(psnrs.values()))[:, 0])
+        mean_y_psnr = np.mean(np.array(list(psnrs.values()))[:, 1])
         mean_vmaf = np.mean(list(vmafs.values()))
         score = 0.8 * mean_psnr + 0.2 * mean_vmaf
-        return score, psnrs, vmafs, mean_psnr, mean_vmaf
+        return score, psnrs, vmafs, mean_psnr, mean_y_psnr, mean_vmaf
 
     def _read_image(self, file_path):
         im = Image.open(file_path).convert('RGB')
@@ -58,14 +60,19 @@ class Metric:
         psnrs = {}
         for index in range(len(predictions)):
             p_image = self._read_image(predictions[index])
+            y_p_image = rgb2ycbcr(p_image)[:, :, :1]
             p_image = np.expand_dims(p_image, axis=0)
+            y_p_image = np.expand_dims(y_p_image, axis=0)
             r_image = self._read_image(truths[index])
+            y_r_image = rgb2ycbcr(r_image)[:, :, :1]
+            y_r_image = np.expand_dims(y_r_image, axis=0)
             r_image = np.expand_dims(r_image, axis=0)
             try:
                 psnr_score = psnr_fn(p_image, r_image)
+                y_psnr_score = psnr_fn(y_p_image, y_r_image)
                 key = predictions[index].split('/')[-2] + '/' + predictions[index].split('/')[-1]
-                print(key, psnr_score)
-                psnrs[key] = psnr_score
+                print(key, psnr_score, y_psnr_score)
+                psnrs[key] = [psnr_score, y_psnr_score]
             except Exception as e:
                 print(predictions[index], truths[index])
         psnrs = {key: psnrs[key] for key in sorted(psnrs.keys())}
@@ -114,8 +121,8 @@ def main():
     vmaf_video_ids = ['Youku_00194', 'Youku_00164', 'Youku_00189', 'Youku_00198', 'Youku_00155']
     args['vmaf_video_ids'] = vmaf_video_ids
     metric = Metric(args)
-    score, psnr, vmaf, mean_psnr, mean_vmaf = metric.compute_score()
-    result = {'score': score, 'psnr':psnr, 'vmaf':vmaf, 'mean_psnr': mean_psnr, 'mean_vmaf': mean_vmaf}
+    score, psnr, vmaf, mean_psnr, mean_y_psnr, mean_vmaf = metric.compute_score()
+    result = {'score': score, 'psnr': psnr, 'y_psnr': mean_y_psnr, 'vmaf': vmaf, 'mean_psnr': mean_psnr, 'mean_vmaf': mean_vmaf}
     with open(os.path.join(args['output_dir'], 'val_result.json'), 'w') as writer:
         json.dump(result, writer)
 
